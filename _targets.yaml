@@ -1,0 +1,6 @@
+main:
+  script: _targets.R
+  store: _targets
+ale:
+  script: _ale.R
+  store: _ale

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+#$ -l mem_free=2GB 
+#$ -l h_vmem=2GB
+#$ -pe local 10 
+#$ -cwd
+#$ -m e
+#$ -M psadil1@jh.edu
+
+module load singularity
+module load fsl
+
+

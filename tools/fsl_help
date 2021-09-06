@@ -1,0 +1,5 @@
+#!/bin/bash
+
+docker run --rm repronim/neurodocker:0.7.0 generate docker \
+  --base neurodebian:stretch -p apt --fsl version=6.0.3 \
+  > DockerFSL
