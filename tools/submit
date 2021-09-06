@@ -7,7 +7,6 @@
 #$ -m e
 #$ -M psadil1@jh.edu
 
-module load singularity
-module load fsl
+module load R/4.0.3
 
-
+Rscript -e "targets::tar_make_future(script='_ale.R')"

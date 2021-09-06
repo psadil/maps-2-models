@@ -2,9 +2,9 @@ get_stats_dirs <- function(root){
   fs::dir_ls(root, recurse = TRUE, glob = "*stats*", type = "directory")
 }
 
-prep_cope_tbl <- function(cope_files, n, study){
+prep_cope_tbl <- function(cope_files, n, study, iter=1){
   copes <- sample(cope_files, n)
-  tibble::tibble(copes = copes, n_sub=n, study=study)
+  tibble::tibble(copes = copes, n_sub=n, study=study, iter=iter)
 }
 
 calc_z <- function(cope_files){
@@ -59,15 +59,16 @@ calc_clusters <- function(cope_files, pthresh = 0.05){
     dplyr::rename(index = `Cluster Index`) %>%
     dplyr::mutate(
       n_sub = unique(cope_files$n_sub),
-      study = unique(cope_files$study))
+      study = unique(cope_files$study),
+      iter = unique(cope_files$iter))
 }
 
 
-write_study <- function(cl, study, n_sub){
+write_study <- function(cl, study, n_sub, iter){
   file <- fs::file_temp()
   
   header <- c(
-    glue::glue("// study {study}"), 
+    glue::glue("// study {study}, iter {iter}"), 
     glue::glue("// Subjects={n_sub}"))
   
   readr::write_lines(header, file)
@@ -89,20 +90,22 @@ write_all_studies <- function(study_files, out_file){
 
 do_ale <- function(
   clusters, 
-  foci_stem = NULL,
   perm=1000, 
   p=0.01, 
   clust=0.01){
   
   cl <- clusters %>%
-    dplyr::group_by(index, study, n_sub) %>%
+    dplyr::group_by(index, study, n_sub, iter) %>%
     dplyr::filter(Value == max(Value)) %>%
-    dplyr::group_by(study, n_sub) %>%
+    dplyr::group_by(study, n_sub, iter) %>%
     tidyr::nest() %>%
     dplyr::ungroup() %>%
-    dplyr::mutate(cl_files = purrr::pmap_chr(list(cl=data, study=study, n_sub=n_sub), write_study))
+    dplyr::mutate(cl_files = purrr::pmap_chr(list(cl=data, study=study, n_sub=n_sub, iter=iter), write_study))
   
-  foci_file <- fs::file_temp() %>%
+  iter <- unique(clusters$iter)
+  n_sub <- unique(clusters$n_sub)
+  
+  foci_file <- fs::path_temp(glue::glue("foci_nsub-{n_sub}_iter-{iter}")) %>%
     fs::path_abs()
   
   write_all_studies(cl$cl_files, foci_file)
@@ -110,26 +113,32 @@ do_ale <- function(
   system2(
     "java",
     # args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -mask=/home/psadil/fsl/data/standard/MNI152_T1_2mm_brain_mask.nii.gz -p={p} -perm={perm} -clust={clust}")
-    args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -mask=/home/psadil/fsl/data/standard/MNI152_T1_2mm_brain_mask.nii.gz -p={p}")
+    args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -p={p}")
   )
   
   fname <- fs::path_file(foci_file)
   foci_dir <- fs::path_dir(foci_file)
   niis <- fs::dir_ls(foci_dir, glob = glue::glue("*{fname}*nii"))
   
-  out_dir <- (foci_stem %||% foci_file) %>%
-    fs::path_dir() %>%
-    fs::path_abs()
+  # out_dir <- (foci_stem %||% foci_file) %>%
+  #   fs::path_dir() %>%
+  #   fs::path_abs()
+  out_dir <- here::here("data-raw", "niis")
   
   purrr::walk(niis, R.utils::gzip, overwrite=TRUE)
-  gzs <- fs::dir_ls(foci_dir, glob = glue::glue("*{fname}*nii.gz"))
+  # gzs <- fs::dir_ls(foci_dir, glob = glue::glue("*{fname}*nii.gz"))
   
-  out_stem <- (foci_stem %||% foci_file) %>%
-    fs::path_file() %>%
-    fs::path_ext_remove()
+  # out_stem <- foci_file %>%
+  #   fs::path_file() %>%
+  #   fs::path_ext_remove()
   
-  out_files <- stringr::str_replace(gzs, fname, out_stem)
-  out <- fs::file_move(gzs, out_files) %>%
+  # out_files <- stringr::str_replace(gzs, fname, out_stem)
+  # out <- fs::file_move(gzs, out_files) %>%
+  #   fs::file_move(out_dir)
+  
+  if(!fs::dir_exists(out_dir)) fs::dir_create(out_dir)
+  
+  out <- fs::dir_ls(foci_dir, glob = glue::glue("*{fname}*nii.gz")) |>
     fs::file_move(out_dir)
   
   out
@@ -139,7 +148,7 @@ do_ale <- function(
 apply_reg_cope <- function(
   stats_dir, 
   outfile = fs::file_temp(),
-  reffile = "~/fsl/data/standard/MNI152_T1_2mm_brain.nii.gz"){
+  reffile = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain.nii.gz")){
   
   sub_dir <- fs::path_dir(stats_dir)
   warp <- fs::path(sub_dir, "reg", "example_func2standard_warp")
