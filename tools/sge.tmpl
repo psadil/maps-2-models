@@ -1,9 +1,6 @@
 #!/bin/bash
 
 #$ -cwd               # Run in the current working directory.
-#$ -pe local <%= resources[["num_cores"]] | 1 %> # Wildcard for cores per job.
-#$ -l mem_free=<%= resources[["mem_free"]] | 2G %> 
-#$ -l h_vmem=<%= resources[["mem_free"]] | 2G %>
 #$ -j y               # Direct stdout and stderr to the same file.
 #$ -o <%= log.file %> # log file
 #$ -V                 # Use environment variables.

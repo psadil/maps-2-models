@@ -15,9 +15,14 @@ plan(batchtools_sge, template = "tools/sge.tmpl")
 
 list(
   tar_target(
-    stats_dirs,
+    avail,
+    here::here("data-raw", "avail.txt"),
+    format = "file"),
+  tar_target(
+    feat_dirs,
     # get_stats_dirs(here::here("data-raw","task_fMRI")),
-    get_stats_dirs(fs::path("/dcl01", "smart","data", "UKBiobank", "task_fMRI")),
+    # get_stats_dirs(fs::path("/dcl01", "smart","data", "UKBiobank", "task_fMRI")),
+    readr::read_lines(here::here("data-raw") %>% fs::path("stats") ),
     format = "file"),
   tar_target(n_sub, c(10, 20)),
   tar_target(study, seq_len(10)),
@@ -25,7 +30,7 @@ list(
   tar_target(cope5_index, seq_len(50)),
   tar_target(
     cope5,
-    apply_reg_cope(stats_dirs[cope5_index], tar_path()),
+    apply_reg_cope(feat_dirs[cope5_index], tar_path()),
     format = "file",
     pattern = map(cope5_index)),
   tar_target(

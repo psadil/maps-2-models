@@ -146,13 +146,12 @@ do_ale <- function(
 
 
 apply_reg_cope <- function(
-  stats_dir, 
+  feat_dir, 
   outfile = fs::file_temp(),
   reffile = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain.nii.gz")){
   
-  sub_dir <- fs::path_dir(stats_dir)
-  warp <- fs::path(sub_dir, "reg", "example_func2standard_warp")
-  cope5 <- fs::path(stats_dir, "cope5")
+  warp <- fs::path(feat_dir, "reg", "example_func2standard_warp")
+  cope5 <- fs::path(feat_dir, "stats", "cope5")
   
   outfile <- fs::path_abs(outfile)
   
