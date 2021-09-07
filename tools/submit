@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#$ -l mem_free=2GB 
-#$ -l h_vmem=2GB
-#$ -pe local 10 
+#$ -l mem_free=2G 
+#$ -l h_vmem=2G
+#$ -pe local 1 
 #$ -cwd
 #$ -m e
 #$ -M psadil1@jh.edu
 
 module load R/4.0.3
 
-Rscript -e "targets::tar_make_future(script='_ale.R')"
+Rscript -e "targets::tar_make_future(script='_ale.R', workers = 10)"

@@ -43,8 +43,8 @@ list(
         resources = list(mem_free = "10G")))),
   tar_target(
     clusters_grouped,
-    clusters |>
-      dplyr::group_by(n_sub, iter) |>
+    clusters %>%
+      dplyr::group_by(n_sub, iter) %>%
       tar_group(),
     iteration = "group"),
   tar_target(

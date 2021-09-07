@@ -138,7 +138,7 @@ do_ale <- function(
   
   if(!fs::dir_exists(out_dir)) fs::dir_create(out_dir)
   
-  out <- fs::dir_ls(foci_dir, glob = glue::glue("*{fname}*nii.gz")) |>
+  out <- fs::dir_ls(foci_dir, glob = glue::glue("*{fname}*nii.gz")) %>%
     fs::file_move(out_dir)
   
   out
