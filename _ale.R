@@ -22,12 +22,12 @@ list(
     feat_dirs,
     # get_stats_dirs(here::here("data-raw","task_fMRI")),
     # get_stats_dirs(fs::path("/dcl01", "smart","data", "UKBiobank", "task_fMRI")),
-    readr::read_lines(here::here("data-raw") %>% fs::path("stats") ),
-    format = "file"),
-  tar_target(n_sub, c(10, 20)),
-  tar_target(study, seq_len(10)),
-  tar_target(iter, seq_len(10)),
-  tar_target(cope5_index, seq_len(50)),
+    readr::read_lines(avail),
+    format = "qs"),
+  tar_target(n_sub, c(10, 20, 50, 100)),
+  tar_target(study, seq_len(5)),
+  tar_target(iter, seq_len(5)),
+  tar_target(cope5_index, seq_len(100)),
   tar_target(
     cope5,
     apply_reg_cope(feat_dirs[cope5_index], tar_path()),
@@ -35,12 +35,12 @@ list(
     pattern = map(cope5_index)),
   tar_target(
     cope_files,
-    prep_cope_tbl(cope5, n = n_sub, study=study, iter=iter),
+    prep_cope_tbl(cope5, n = n_sub, study=study, iter=iter), 
     format = "fst_tbl",
     pattern = cross(n_sub, study, iter)),
   tar_target(
     clusters,
-    calc_clusters(cope_files, pthresh = 0.001),
+    calc_clusters(cope_files, pthresh = 0.01),
     format = "fst_tbl",
     pattern = map(cope_files),
     resources = tar_resources(
@@ -54,12 +54,15 @@ list(
     iteration = "group"),
   tar_target(
     ale,
-    do_ale(clusters_grouped, p=0.001),
+    do_ale(clusters_grouped, p=0.01),
     pattern = map(clusters_grouped),
     format = "file",
     iteration = "vector",
     resources = tar_resources(
       future = tar_resources_future(
-        resources = list(mem_free = "10G")))
-  )
+        resources = list(mem_free = "10G")))),
+  tar_target(
+    z_pop,
+    calc_z(cope5), 
+    format = "qs")
 )

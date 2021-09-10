@@ -7,6 +7,7 @@ prep_cope_tbl <- function(cope_files, n, study, iter=1){
   tibble::tibble(copes = copes, n_sub=n, study=study, iter=iter)
 }
 
+
 calc_z <- function(cope_files){
   copes <- purrr::map(cope_files, ~neurobase::readnii(.x)@.Data) %>%
     simplify2array()
@@ -20,6 +21,7 @@ calc_z <- function(cope_files){
   
   neurobase::niftiarr(neurobase::readnii(cope_files[[1]]), z_stat)
 }
+
 
 calc_clusters <- function(cope_files, pthresh = 0.05){
   # TODO: standardize to mni
@@ -49,7 +51,7 @@ calc_clusters <- function(cope_files, pthresh = 0.05){
     threshold = 2.3,
     pthresh = pthresh,
     smooth_est = 0.388263,
-    # standard_image = "/home/psadil/fsl/data/standard/MNI152_T1_2mm_brain.nii.gz",
+    standard_image = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain.nii.gz"),
     opts = glue::glue("--volume={119820}"),
     connectivity = 26
   )
@@ -113,7 +115,7 @@ do_ale <- function(
   system2(
     "java",
     # args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -mask=/home/psadil/fsl/data/standard/MNI152_T1_2mm_brain_mask.nii.gz -p={p} -perm={perm} -clust={clust}")
-    args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -p={p}")
+    args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -p={p} -mask=MNI152_wb -minVol=20")
   )
   
   fname <- fs::path_file(foci_file)
@@ -144,11 +146,15 @@ do_ale <- function(
   out
 }
 
-
 apply_reg_cope <- function(
   feat_dir, 
   outfile = fs::file_temp(),
   reffile = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain.nii.gz")){
+  
+  # Option -s ( standard image ) selected with  argument "/vols/Data/ukbiobank/local/bb_FSL/data/standard/MNI152_T1_2mm_brain"
+  # convert_xfm -omat example_func2standard.mat -concat highres2standard.mat example_func2highres.mat
+  # convertwarp --ref=standard --premat=example_func2highres.mat --warp1=highres2standard_warp --out=example_func2standard_warp
+  # applywarp --ref=standard --in=example_func --out=example_func2standard --warp=example_func2standard_warp
   
   warp <- fs::path(feat_dir, "reg", "example_func2standard_warp")
   cope5 <- fs::path(feat_dir, "stats", "cope5")

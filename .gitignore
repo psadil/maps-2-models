@@ -2,3 +2,9 @@
 .Rhistory
 .RData
 .Ruserdata
+
+data-raw/niis
+data-raw/task_fMRI
+data-raw/*nii*
+data-raw/*.jar
+_ale/objects
