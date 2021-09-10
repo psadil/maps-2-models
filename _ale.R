@@ -40,12 +40,12 @@ list(
     pattern = cross(n_sub, study, iter)),
   tar_target(
     clusters,
-    calc_clusters(cope_files, pthresh = 0.01),
+    calc_clusters(cope_files, pthresh = 0.001),
     format = "fst_tbl",
     pattern = map(cope_files),
     resources = tar_resources(
       future = tar_resources_future(
-        resources = list(mem_free = "10G")))),
+        resources = list(mem_free = 10)))),
   tar_target(
     clusters_grouped,
     clusters %>%
@@ -54,13 +54,13 @@ list(
     iteration = "group"),
   tar_target(
     ale,
-    do_ale(clusters_grouped, p=0.01),
+    do_ale(clusters_grouped, p=0.001),
     pattern = map(clusters_grouped),
     format = "file",
     iteration = "vector",
     resources = tar_resources(
       future = tar_resources_future(
-        resources = list(mem_free = "10G")))),
+        resources = list(mem_free = 10)))),
   tar_target(
     z_pop,
     calc_z(cope5), 
