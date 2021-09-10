@@ -3,7 +3,8 @@
 #$ -cwd               # Run in the current working directory.
 #$ -j y               # Direct stdout and stderr to the same file.
 #$ -V                 # Use environment variables.
-#$ -l mem_free=<%= resources[["mem_free"]] | 3 %>G,h_vmem=<%= resources[["mem_free"]] | 3 %>G
+#$ -l mem_free=<%= if (!is.null(resources$mem_free)) resources$mem_free else "4G" %>
+#$ -l h_vmem=<%= if (!is.null(resources$mem_free)) resources$mem_free else "4G" %>
 #$ -N <%= job.name %> # job name
 #$ -o <%= log.file %> # log file
 
