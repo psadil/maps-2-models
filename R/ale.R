@@ -1,5 +1,5 @@
 get_stats_dirs <- function(root){
-  fs::dir_ls(root, recurse = TRUE, glob = "*stats*", type = "directory") |>
+  fs::dir_ls(root, recurse = TRUE, glob = "*stats*", type = "directory") %>%
     fs::path_dir()
 }
 
@@ -53,6 +53,7 @@ calc_clusters <- function(cope_files, pthresh = 0.05){
     pthresh = pthresh,
     smooth_est = 0.388263,
     opts = glue::glue("--volume={119820}"),
+    mm = TRUE,
     connectivity = 26
   )
   

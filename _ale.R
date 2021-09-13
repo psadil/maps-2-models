@@ -26,7 +26,7 @@ list(
     format = "qs"),
   tar_target(n_sub, c(10, 20, 50, 100)),
   tar_target(study, seq_len(5)),
-  tar_target(iter, seq_len(5)),
+  tar_target(iter, seq_len(1)),
   tar_target(cope5_index, seq_len(100)),
   tar_target(
     cope5,
@@ -67,6 +67,10 @@ list(
   tar_target(
     clusters_grouped_index,
     clusters %>%
+      dplyr::group_by(n_sub, iter) %>%
+      dplyr::mutate(
+        index.bak = index,
+        index = kmeans(cbind(x,y,z), dplyr::n_distinct(index), nstart = 10)$cluster) %>%
       dplyr::group_by(n_sub, iter, index) %>%
       tar_group(),
     iteration = "group",
