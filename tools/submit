@@ -8,5 +8,5 @@
 
 module load R/4.0.3
 
-Rscript -e "targets::tar_make_future(script='_ale.R', workers = 100, store='_ale')"
+Rscript -e "targets::tar_make_future(script='_ale.R', workers = 100)"
 

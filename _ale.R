@@ -22,7 +22,7 @@ list(
     feat_dirs,
     # get_stats_dirs(here::here("data-raw","task_fMRI")),
     # get_stats_dirs(fs::path("/dcl01", "smart","data", "UKBiobank", "task_fMRI")),
-    readr::read_lines(avail),
+    readr::read_lines(avail, num_threads=1),
     format = "qs"),
   tar_target(n_sub, c(10, 20, 50, 100)),
   tar_target(study, seq_len(5)),
