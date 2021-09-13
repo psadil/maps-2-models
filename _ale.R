@@ -67,13 +67,17 @@ list(
   tar_target(
     clusters_grouped_index,
     clusters %>%
+      dplyr::group_by(n_sub, iter) %>%
+      dplyr::mutate(
+        index.bak = index,
+        index = kmeans(cbind(x,y,z), dplyr::n_distinct(index), nstart = 10)$cluster) %>%
       dplyr::group_by(n_sub, iter, index) %>%
       tar_group(),
     iteration = "group",
     format = "qs"),
   tar_target(
     ale_index,
-    do_ale(clusters_grouped_index, p=0.001),
+    do_ale(clusters_grouped_index, p=0.05, perm=1000, clust=0.05),
     pattern = map(clusters_grouped_index),
     format = "file",
     iteration = "vector",

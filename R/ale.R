@@ -53,6 +53,7 @@ calc_clusters <- function(cope_files, pthresh = 0.05){
     pthresh = pthresh,
     smooth_est = 0.388263,
     opts = glue::glue("--volume={119820}"),
+    mm = TRUE,
     connectivity = 26
   )
   
@@ -118,7 +119,8 @@ do_ale <- function(
   system2(
     "java",
     # args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -mask=/home/psadil/fsl/data/standard/MNI152_T1_2mm_brain_mask.nii.gz -p={p} -perm={perm} -clust={clust}")
-    args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -p={p} -mask=MNI152_wb -minVol=20")
+    # args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -p={p} -mask=MNI152_wb -minVol=20")
+    args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -p={p} -mask=MNI152_wb -clust={clust} -perm={perm}")
   )
   
   fname <- fs::path_file(foci_file)
