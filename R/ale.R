@@ -51,7 +51,6 @@ calc_clusters <- function(cope_files, pthresh = 0.05){
     threshold = 2.3,
     pthresh = pthresh,
     smooth_est = 0.388263,
-    standard_image = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain.nii.gz"),
     opts = glue::glue("--volume={119820}"),
     connectivity = 26
   )
