@@ -77,7 +77,7 @@ list(
     format = "qs"),
   tar_target(
     ale_index,
-    do_ale(clusters_grouped_index, p=0.001),
+    do_ale(clusters_grouped_index, p=0.05, perm=1000, clust=0.05),
     pattern = map(clusters_grouped_index),
     format = "file",
     iteration = "vector",
