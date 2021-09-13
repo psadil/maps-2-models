@@ -49,13 +49,32 @@ list(
   tar_target(
     clusters_grouped,
     clusters %>%
+      dplyr::group_by(index, study, n_sub, iter) %>%
+      dplyr::filter(Value == max(Value)) %>%
       dplyr::group_by(n_sub, iter) %>%
       tar_group(),
-    iteration = "group"),
+    iteration = "group",
+    format = "qs"),
   tar_target(
     ale,
     do_ale(clusters_grouped, p=0.001),
     pattern = map(clusters_grouped),
+    format = "file",
+    iteration = "vector",
+    resources = tar_resources(
+      future = tar_resources_future(
+        resources = list(mem_free = 10)))),
+  tar_target(
+    clusters_grouped_index,
+    clusters %>%
+      dplyr::group_by(n_sub, iter, index) %>%
+      tar_group(),
+    iteration = "group",
+    format = "qs"),
+  tar_target(
+    ale_index,
+    do_ale(clusters_grouped_index, p=0.001),
+    pattern = map(clusters_grouped_index),
     format = "file",
     iteration = "vector",
     resources = tar_resources(

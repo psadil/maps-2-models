@@ -1,5 +1,6 @@
 get_stats_dirs <- function(root){
-  fs::dir_ls(root, recurse = TRUE, glob = "*stats*", type = "directory")
+  fs::dir_ls(root, recurse = TRUE, glob = "*stats*", type = "directory") |>
+    fs::path_dir()
 }
 
 prep_cope_tbl <- function(cope_files, n, study, iter=1){
@@ -41,7 +42,7 @@ calc_clusters <- function(cope_files, pthresh = 0.05){
   #' --mm
   #' --volume=119820 
   #' --othresh=thresh_zstat1 
-  #' -o cluster_mask_zstat1 
+  #' -o cluster_mask_zsqtat1 
   #' --connectivity=26  
   #' --olmax=lmax_zstat1.txt 
   #' --scalarname=Z > cluster_zstat1.txt
@@ -51,7 +52,6 @@ calc_clusters <- function(cope_files, pthresh = 0.05){
     threshold = 2.3,
     pthresh = pthresh,
     smooth_est = 0.388263,
-    standard_image = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain.nii.gz"),
     opts = glue::glue("--volume={119820}"),
     connectivity = 26
   )
@@ -69,8 +69,10 @@ calc_clusters <- function(cope_files, pthresh = 0.05){
 write_study <- function(cl, study, n_sub, iter){
   file <- fs::file_temp()
   
+  index <- if (dplyr::n_distinct(cl$index) > 1) "all" else unique(cl$index)
+  
   header <- c(
-    glue::glue("// study {study}, iter {iter}"), 
+    glue::glue("// index {index}, study {study}, iter {iter}"), 
     glue::glue("// Subjects={n_sub}"))
   
   readr::write_lines(header, file)
@@ -97,17 +99,18 @@ do_ale <- function(
   clust=0.01){
   
   cl <- clusters %>%
-    dplyr::group_by(index, study, n_sub, iter) %>%
-    dplyr::filter(Value == max(Value)) %>%
     dplyr::group_by(study, n_sub, iter) %>%
     tidyr::nest() %>%
-    dplyr::ungroup() %>%
-    dplyr::mutate(cl_files = purrr::pmap_chr(list(cl=data, study=study, n_sub=n_sub, iter=iter), write_study))
+    dplyr::mutate(
+      cl_files = purrr::pmap_chr(
+        list(cl=data, study=study, n_sub=n_sub, iter=iter), 
+        write_study))
   
   iter <- unique(clusters$iter)
   n_sub <- unique(clusters$n_sub)
+  index <- if (dplyr::n_distinct(clusters$index) > 1) "all" else unique(clusters$index)
   
-  foci_file <- fs::path_temp(glue::glue("foci_nsub-{n_sub}_iter-{iter}")) %>%
+  foci_file <- fs::path_temp(glue::glue("foci_nsub-{n_sub}_iter-{iter}_index-{index}")) %>%
     fs::path_abs()
   
   write_all_studies(cl$cl_files, foci_file)
