@@ -27,7 +27,7 @@ list(
   tar_target(n_sub, c(10, 20, 50, 100)),
   tar_target(study, seq_len(5)),
   tar_target(iter, seq_len(1)),
-  tar_target(cope5_index, seq_len(100)),
+  tar_target(cope5_index, seq_len(200)),
   tar_target(
     cope5,
     apply_reg_cope(feat_dirs[cope5_index], tar_path()),
@@ -40,12 +40,12 @@ list(
     pattern = cross(n_sub, study, iter)),
   tar_target(
     clusters,
-    calc_clusters(cope_files, pthresh = 0.001),
+    calc_clusters(cope_files, pthresh = 0.01),
     format = "fst_tbl",
     pattern = map(cope_files),
     resources = tar_resources(
       future = tar_resources_future(
-        resources = list(mem_free = 10)))),
+        resources = list(mem_free = "10G")))),
   tar_target(
     clusters_grouped,
     clusters %>%
@@ -57,13 +57,13 @@ list(
     format = "qs"),
   tar_target(
     ale,
-    do_ale(clusters_grouped, p=0.001),
+    do_ale(clusters_grouped, p=0.05, perm=1000, clust=0.05),
     pattern = map(clusters_grouped),
     format = "file",
     iteration = "vector",
     resources = tar_resources(
       future = tar_resources_future(
-        resources = list(mem_free = 10)))),
+        resources = list(mem_free = "10G")))),
   tar_target(
     clusters_grouped_index,
     clusters %>%
@@ -83,9 +83,9 @@ list(
     iteration = "vector",
     resources = tar_resources(
       future = tar_resources_future(
-        resources = list(mem_free = 10)))),
-  tar_target(
-    z_pop,
-    calc_z(cope5), 
-    format = "qs")
+        resources = list(mem_free = "15G"))))
+#  tar_target(
+#    z_pop,
+#    calc_z(cope5), 
+#    format = "qs")
 )
