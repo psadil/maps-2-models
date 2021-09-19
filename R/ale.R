@@ -3,9 +3,14 @@ get_stats_dirs <- function(root){
     fs::path_dir()
 }
 
-prep_cope_tbl <- function(cope_files, n, study, iter=1){
-  copes <- sample(cope_files, n)
-  tibble::tibble(copes = copes, n_sub=n, study=study, iter=iter)
+prep_cope_tbl <- function(cope_files, n_sub, n_study, iter=1){
+  copes <- sample(cope_files, n_sub*n_study)
+  tibble::tibble(
+    copes = copes, 
+    n_sub=n_sub, 
+    study=rep(seq_len(n_study), each=n_sub), 
+    iter=iter,
+    n_study=n_study)
 }
 
 
@@ -25,8 +30,7 @@ calc_z <- function(cope_files){
 
 
 calc_clusters <- function(cope_files, pthresh = 0.05){
-  # TODO: standardize to mni
-  
+
   z_stat <- calc_z(cope_files$copes)
   z_file <- neurobase::writenii(z_stat, fs::file_temp())
   
@@ -63,17 +67,18 @@ calc_clusters <- function(cope_files, pthresh = 0.05){
     dplyr::mutate(
       n_sub = unique(cope_files$n_sub),
       study = unique(cope_files$study),
-      iter = unique(cope_files$iter))
+      iter = unique(cope_files$iter),
+      n_study = unique(cope_files$n_study))
 }
 
 
-write_study <- function(cl, study, n_sub, iter){
+write_study <- function(cl, study, n_sub, iter, n_study){
   file <- fs::file_temp()
   
   index <- if (dplyr::n_distinct(cl$index) > 1) "all" else unique(cl$index)
   
   header <- c(
-    glue::glue("// index {index}, study {study}, iter {iter}"), 
+    glue::glue("// index {index}, n_study {n_study}, study {study}, iter {iter}"), 
     glue::glue("// Subjects={n_sub}"))
   
   readr::write_lines(header, file)
@@ -100,11 +105,11 @@ do_ale <- function(
   clust=0.01){
   
   cl <- clusters %>%
-    dplyr::group_by(study, n_sub, iter) %>%
+    dplyr::group_by(study, n_sub, iter, n_study) %>%
     tidyr::nest() %>%
     dplyr::mutate(
       cl_files = purrr::pmap_chr(
-        list(cl=data, study=study, n_sub=n_sub, iter=iter), 
+        list(cl=data, study=study, n_sub=n_sub, iter=iter, n_study=n_study), 
         write_study))
   
   iter <- unique(clusters$iter)
