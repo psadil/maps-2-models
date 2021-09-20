@@ -6,9 +6,9 @@ get_stats_dirs <- function(root){
 prep_cope_tbl <- function(cope_files, n_sub, n_study, iter=1){
   copes <- sample(cope_files, n_sub*n_study)
   tibble::tibble(
-    copes = copes, 
-    n_sub=n_sub, 
+    copes = copes,  
     study=rep(seq_len(n_study), each=n_sub), 
+    n_sub=n_sub,
     iter=iter,
     n_study=n_study)
 }
@@ -30,6 +30,16 @@ calc_z <- function(cope_files){
 
 
 calc_clusters <- function(cope_files, pthresh = 0.05){
+
+  stopifnot(
+    {
+      dplyr::n_distinct(cope_files$n_sub) == 1
+      dplyr::n_distinct(cope_files$study) == 1
+      dplyr::n_distinct(cope_files$iter) == 1
+      dplyr::n_distinct(cope_files$n_study) == 1
+    }
+  )
+
 
   z_stat <- calc_z(cope_files$copes)
   z_file <- neurobase::writenii(z_stat, fs::file_temp())
@@ -114,9 +124,10 @@ do_ale <- function(
   
   iter <- unique(clusters$iter)
   n_sub <- unique(clusters$n_sub)
+  n_study <- unique(clusters$n_study)
   index <- if (dplyr::n_distinct(clusters$index) > 1) "all" else unique(clusters$index)
   
-  foci_file <- fs::path_temp(glue::glue("foci_nsub-{n_sub}_iter-{iter}_index-{index}")) %>%
+  foci_file <- fs::path_temp(glue::glue("foci_nstudy-{n_study}_nsub-{n_sub}_iter-{iter}_index-{index}")) %>%
     fs::path_abs()
   
   write_all_studies(cl$cl_files, foci_file)

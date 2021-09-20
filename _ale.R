@@ -22,8 +22,8 @@ list(
     feat_dirs,
     readr::read_lines(avail, num_threads=1),
     format = "qs"),
-  tar_target(n_sub, c(10)),
-  tar_target(n_study, c(5, 10)),
+  tar_target(n_sub, c(5, 10)),
+  tar_target(n_study, c(5, 10, 20)),
   tar_target(iter, seq_len(1)),
   tar_target(cope5_index, seq_len(200)),
   tar_target(
@@ -33,17 +33,22 @@ list(
     pattern = map(cope5_index)),
   tar_target(
     cope_files,
-    prep_cope_tbl(cope5, n_sub=n_sub, iter=iter, n_study=n_study) |>
-      dplyr::group_by(iter, n_study, study), 
-    iteration = "group",
-    format = "qs",
+    prep_cope_tbl(cope5, n_sub=n_sub, iter=iter, n_study=n_study) ,
+    format = "fst_tbl",
     pattern = cross(n_sub, iter, n_study)),
   tar_target(
+    cope_files2,
+    cope_files %>%
+      dplyr::group_by(iter, n_study, n_sub, study) %>%
+      tar_group(), 
+    iteration = "group",
+    format = "fst_tbl"),
+  tar_target(
     clusters,
-    calc_clusters(cope_files, pthresh = 0.01),
+    calc_clusters(cope_files2, pthresh = 0.01),
     iteration = "vector",
     format = "fst_tbl",
-    pattern = map(cope_files),
+    pattern = map(cope_files2),
     resources = tar_resources(
       future = tar_resources_future(
         resources = list(mem_free = "10G")))),
@@ -64,7 +69,7 @@ list(
     iteration = "vector",
     resources = tar_resources(
       future = tar_resources_future(
-        resources = list(mem_free = "10G")))),
+        resources = list(mem_free = "15G")))),
   # tar_target(
   #   clusters_grouped_index,
   #   clusters %>%
