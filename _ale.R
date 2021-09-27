@@ -23,9 +23,9 @@ list(
     readr::read_lines(avail, num_threads=1),
     format = "qs"),
   tar_target(n_sub, c(5, 10)),
-  tar_target(n_study, c(5, 10, 20)),
+  tar_target(n_study, c(5, 10, 20, 30)),
   tar_target(iter, seq_len(1)),
-  tar_target(cope5_index, seq_len(200)),
+  tar_target(cope5_index, seq_len(300)),
   tar_target(
     cope5,
     apply_reg_cope(feat_dirs[cope5_index], tar_path()),
@@ -69,7 +69,7 @@ list(
     iteration = "vector",
     resources = tar_resources(
       future = tar_resources_future(
-        resources = list(mem_free = "15G")))),
+        resources = list(mem_free = "10G")))),
   # tar_target(
   #   clusters_grouped_index,
   #   clusters %>%
