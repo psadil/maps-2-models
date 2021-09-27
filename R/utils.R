@@ -15,8 +15,8 @@ correlate <- function(d, y){
     dplyr::select(-{{y}})
 }
 
+
 include_keys <- function(d, key){
-  
   d |> 
     tidyr::pivot_longer(
       tidyselect::matches("[[:digit:]]"),

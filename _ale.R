@@ -22,10 +22,10 @@ list(
     feat_dirs,
     readr::read_lines(avail, num_threads=1),
     format = "qs"),
-  tar_target(n_sub, c(5, 10)),
-  tar_target(n_study, c(5, 10, 20, 30)),
+  tar_target(n_sub, c(5, 10, 20)),
+  tar_target(n_study, c(5, 10, 20)),
   tar_target(iter, seq_len(1)),
-  tar_target(cope5_index, seq_len(300)),
+  tar_target(cope5_index, seq_len(400)),
   tar_target(
     cope5,
     apply_reg_cope(feat_dirs[cope5_index], tar_path()),
@@ -93,5 +93,14 @@ list(
   tar_target(
     z_pop,
     calc_z(cope5),
-    format = "qs")
+    format = "qs",
+    resources = tar_resources(
+      future = tar_resources_future(
+        resources = list(mem_free = "10G")))),
+  tar_target(
+    comparison,
+    avg_by_clust(ales, z_pop),
+    pattern = map(),
+    format = "fst_tbl"
+  )
 )

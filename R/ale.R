@@ -30,7 +30,7 @@ calc_z <- function(cope_files){
 
 
 calc_clusters <- function(cope_files, pthresh = 0.05){
-
+  
   stopifnot(
     {
       dplyr::n_distinct(cope_files$n_sub) == 1
@@ -39,8 +39,8 @@ calc_clusters <- function(cope_files, pthresh = 0.05){
       dplyr::n_distinct(cope_files$n_study) == 1
     }
   )
-
-
+  
+  
   z_stat <- calc_z(cope_files$copes)
   z_file <- neurobase::writenii(z_stat, fs::file_temp())
   
@@ -135,7 +135,7 @@ do_ale <- function(
   system2(
     "java",
     # args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -mask=/home/psadil/fsl/data/standard/MNI152_T1_2mm_brain_mask.nii.gz -p={p} -perm={perm} -clust={clust}")
-    # args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -p={p} -mask=MNI152_wb -minVol=20")
+    # args = glue::glue("-cp data-raw/GingerALE.jar org.brainmawordwordp.meta.getALE2 {foci_file} -p={p} -mask=MNI152_wb -minVol=20")
     args = glue::glue("-cp data-raw/GingerALE.jar org.brainmap.meta.getALE2 {foci_file} -p={p} -mask=MNI152_wb -clust={clust} -perm={perm}")
   )
   
@@ -190,5 +190,26 @@ apply_reg_cope <- function(
     retimg = FALSE)
   
   invisible(fs::path_ext_set(outfile, ".nii.gz"))
+}
+
+
+avg_by_clust <- function(ales, z_pop){
+  
+  z <- ales[stringr::str_detect(ales, "index-all_Z.nii.gz")] %>%
+    neurobase::readnii()
+  
+  clust <- ales[stringr::str_detect(ales, "clust.nii.gz")] %>%
+    neurobase::readnii()
+  
+  clusts <- unique(as.vector(clust))
+  clusts <- clusts[clusts>0]
+  out <- tibble::tibble(cluster = clusts) %>%
+    dplyr::rowwise() |>
+    dplyr::mutate(
+      avg = mean(z[clust == cluster]),
+      med = median(z[clust == cluster]),
+      pop_avg = mean(z_pop[clust == cluster]),
+      pop_med = mean(z_pop[clust == cluster])) %>%
+    dplyr::ungroup()
 }
 

@@ -1,4 +1,4 @@
-# Sys.setenv(TAR_PROJECT = "ale")
+# Sys.setenv(TAR_PROJECT = "targets")
 
 library(targets)
 
@@ -29,11 +29,11 @@ list(
     format = "file"),
   tar_target(
     ukb, 
-    load_tab(fname, key, n_max=2e5),
+    load_tab(fname, key, n_max=Inf),
     format = "fst_tbl"),
   tar_target(
     n,
-    c(10, 20, 40, 100, 1000, 3000)),
+    c(10, 20, 40, 100, 1000)),
   tar_target(i, seq_len(1000)),
   tar_target(
     ukb_split,
