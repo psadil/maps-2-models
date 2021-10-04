@@ -162,7 +162,8 @@ do_ale <- function(
   if(!fs::dir_exists(out_dir)) fs::dir_create(out_dir)
   
   out <- fs::dir_ls(foci_dir, glob = glue::glue("*{fname}*nii.gz")) %>%
-    fs::file_move(out_dir)
+    fs::file_move(out_dir) %>%
+    fs::path_rel(here::here())
   
   out
 }
@@ -202,14 +203,27 @@ avg_by_clust <- function(ales, z_pop){
     neurobase::readnii()
   
   clusts <- unique(as.vector(clust))
-  clusts <- clusts[clusts>0]
-  out <- tibble::tibble(cluster = clusts) %>%
-    dplyr::rowwise() |>
-    dplyr::mutate(
-      avg = mean(z[clust == cluster]),
-      med = median(z[clust == cluster]),
-      pop_avg = mean(z_pop[clust == cluster]),
-      pop_med = mean(z_pop[clust == cluster])) %>%
-    dplyr::ungroup()
+  if(length(clusts) == 1) {
+    out <- tibble::tibble(cluster = clusts) %>%
+      dplyr::mutate(
+        avg = NA,
+        med = NA,
+        pop_avg = NA,
+        pop_med = NA,
+        N = NA)
+  }else{
+    clusts <- clusts[clusts>0]
+    out <- tibble::tibble(cluster = clusts) %>%
+      dplyr::rowwise() %>%
+      dplyr::mutate(
+        avg = mean(z[clust == cluster]),
+        med = median(z[clust == cluster]),
+        pop_avg = mean(z_pop[clust == cluster]),
+        pop_med = mean(z_pop[clust == cluster]),
+        N = sum(clust == cluster)) %>%
+      dplyr::ungroup()
+  }
+  out
+
 }
 

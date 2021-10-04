@@ -24,7 +24,7 @@ list(
     format = "qs"),
   tar_target(n_sub, c(5, 10)),
   tar_target(n_study, c(5, 10, 20)),
-  tar_target(iter, seq_len(5)),
+  tar_target(iter, seq_len(1)),
   tar_target(cope5_index, seq_len(300)),
   tar_target(
     cope5,
@@ -99,8 +99,8 @@ list(
         resources = list(mem_free = "10G")))),
   tar_target(
     comparison,
-    avg_by_clust(ales, z_pop),
-    pattern = map(),
+    avg_by_clust(ale, z_pop),
+    pattern = map(ale),
     format = "fst_tbl"
   )
 )
