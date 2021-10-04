@@ -22,8 +22,8 @@ list(
     feat_dirs,
     readr::read_lines(avail, num_threads=1),
     format = "qs"),
-  tar_target(n_sub, c(5, 10)),
-  tar_target(n_study, c(5, 10, 20)),
+  tar_target(n_sub, c(5)),
+  tar_target(n_study, c(5)),
   tar_target(iter, seq_len(1)),
   tar_target(cope5_index, seq_len(300)),
   tar_target(
@@ -43,6 +43,11 @@ list(
       tar_group(), 
     iteration = "group",
     format = "fst_tbl"),
+  tar_target(
+    z_map,
+    calc_z(cope_files2),
+    format = "qs"
+  ),
   tar_target(
     clusters,
     calc_clusters(cope_files2, pthresh = 0.01),
@@ -102,5 +107,4 @@ list(
     avg_by_clust(ale, z_pop),
     pattern = map(ale),
     format = "fst_tbl"
-  )
-)
+  ))

@@ -196,8 +196,8 @@ apply_reg_cope <- function(
 
 avg_by_clust <- function(ales, z_pop){
   
-  z <- ales[stringr::str_detect(ales, "index-all_Z.nii.gz")] %>%
-    neurobase::readnii()
+  z_file <- ales[stringr::str_detect(ales, "index-all_Z.nii.gz")] 
+  z <- neurobase::readnii(z_file)
   
   clust <- ales[stringr::str_detect(ales, "clust.nii.gz")] %>%
     neurobase::readnii()
@@ -210,7 +210,8 @@ avg_by_clust <- function(ales, z_pop){
         med = NA,
         pop_avg = NA,
         pop_med = NA,
-        N = NA)
+        N = NA,
+        dice = NA)
   }else{
     clusts <- clusts[clusts>0]
     out <- tibble::tibble(cluster = clusts) %>%
@@ -219,11 +220,31 @@ avg_by_clust <- function(ales, z_pop){
         avg = mean(z[clust == cluster]),
         med = median(z[clust == cluster]),
         pop_avg = mean(z_pop[clust == cluster]),
-        pop_med = mean(z_pop[clust == cluster]),
-        N = sum(clust == cluster)) %>%
+        pop_med = median(z_pop[clust == cluster]),
+        N = sum(clust == cluster),
+        dice = calc_dice(z, z_pop)) %>%
       dplyr::ungroup()
   }
-  out
+  out %>%
+    dplyr::mutate(
+      file = z_file,
+      n_study = stringr::str_extract(z_file, "nstudy-([[:digit:]]+)") %>%
+        stringr::str_extract("[[:digit:]]+") %>%
+        as.numeric(),
+      n_sub = stringr::str_extract(z_file, "nsub-([[:digit:]]+)") %>%
+        stringr::str_extract("[[:digit:]]+") %>%
+        as.numeric(),
+      iter = stringr::str_extract(z_file, "iter-([[:digit:]]+)") %>%
+        stringr::str_extract("[[:digit:]]+") %>%
+        as.numeric()  
+    )
+}
 
+
+calc_dice <- function(nii1, nii2, na.rm = TRUE){
+  
+  intersection <- abs(nii1 * nii2) > 0
+  2 * sum(intersection, na.rm = na.rm) / (sum(nii1 > 0, na.rm = na.rm) + sum(nii2 > 0, na.rm = na.rm))
+  
 }
 
