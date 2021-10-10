@@ -241,10 +241,9 @@ avg_by_clust <- function(ales, z_pop){
 }
 
 
-calc_dice <- function(nii1, nii2, na.rm = TRUE){
-  
-  intersection <- abs(nii1 * nii2) > 0
-  2 * sum(intersection, na.rm = na.rm) / (sum(nii1 > 0, na.rm = na.rm) + sum(nii2 > 0, na.rm = na.rm))
-  
+calc_dice <- function(nii1, nii2, lower = 0.0001, na.rm = TRUE){
+  abs1 <- abs(nii1) > lower
+  abs2 <- abs(nii2) > lower
+  2 * sum(abs1 * abs2, na.rm = na.rm) / (sum(abs1, na.rm = na.rm) + sum(abs2, na.rm = na.rm))
 }
 
