@@ -8,7 +8,7 @@
 #$ -N <%= job.name %> # job name
 #$ -o <%= log.file %> # log file
 
-module load R/4.0.3   
+module load conda_R/4.1.x   
 module load fsl
 
 Rscript -e 'batchtools::doJobCollection("<%= uri %>")' # Leave alone.

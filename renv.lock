@@ -450,6 +450,11 @@
       "Repository": "CRAN",
       "Hash": "322f99973192220d2f0dd6e6794426b5"
     },
+    "fst": {
+      "Package": "fst",
+      "Version": "0.9.4",
+      "Source": "Repository"
+    },
     "future": {
       "Package": "future",
       "Version": "1.22.1",

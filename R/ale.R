@@ -17,27 +17,25 @@ do_z <- function(cope_files){
   stopifnot(
     {
       dplyr::n_distinct(cope_files$n_sub) == 1
-      dplyr::n_distinct(cope_files$study) == 1
       dplyr::n_distinct(cope_files$iter) == 1
       dplyr::n_distinct(cope_files$n_study) == 1
+      dplyr::n_distinct(cope_files$study) == unique(cope_files$n_study)
     }
   )
   
   iter <- unique(cope_files$iter)
   n_sub <- unique(cope_files$n_sub)
   n_study <- unique(cope_files$n_study)
-  study <- unique(cope_files$study)
-  
+
   z_stat <- calc_z(cope_files$copes)
   z_file <- neurobase::writenii(
     z_stat, 
     here::here(
-      "data-raw", "niis", glue::glue("nstudy-{n_study}_nsub-{n_sub}_study-{study}_iter-{iter}_z.nii.gz"))) %>%
+      "data-raw", "niis", glue::glue("nstudy-{n_study}_nsub-{n_sub}_iter-{iter}_z.nii.gz"))) %>%
     fs::path_rel(here::here())
   
   cope_files %>%
-    dplyr::select(n_sub, study, iter, n_study) %>%
-    dplyr::distinct(n_sub, study, iter, n_study) %>%
+    dplyr::distinct(n_sub, iter, n_study) %>%
     dplyr::mutate(z = z_file)
 }
 

@@ -6,7 +6,7 @@
 #$ -m e
 #$ -M psadil1@jh.edu
 
-module load R/4.0.3
+module load conda_R/4.1.x
 
 Rscript -e "targets::tar_make_future(script='_ale.R', workers = 20)"
 
