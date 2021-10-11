@@ -87,5 +87,14 @@ list(
     tidy_ale(ale),
     pattern = map(ale),
     format = "fst_tbl"
-  )
+  ),
+  tar_target(
+    ibma_py_script,
+    fs::path("python", "ibma.py"),
+    format = "file"),
+  tar_target(
+    ibma,
+    do_ibma_py(ale, python_source = here::here(ibma_py_script), condaenv = "meta"),
+    pattern = map(ale),
+    format = "fst_tbl")
 )

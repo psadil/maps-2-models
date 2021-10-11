@@ -89,6 +89,38 @@ do_ale_py <- function(
     dplyr::ungroup()
 }
 
+do_ibma_py <- function(
+  ale, 
+  condaenv = "meta", 
+  python_source = here::here("python", "ibma.py"),
+  mask_file = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain_mask.nii.gz")){
+  
+  stopifnot(
+    {
+      dplyr::n_distinct(ale$n_sub) == 1
+      dplyr::n_distinct(ale$iter) == 1
+      dplyr::n_distinct(ale$n_study) == 1
+    }
+  )
+  
+  dset <- ale |>
+    dplyr::mutate(dset_fname = stringr::str_replace(z_ale, "_z.nii.gz", "_dset.pklz") )
+  
+  reticulate::use_condaenv(condaenv = condaenv)
+  reticulate::source_python(file = python_source)
+  
+  dset %>%
+    dplyr::rowwise() %>%
+    dplyr::mutate(
+      z_ibma = do_imba(
+        dset_fname,
+        here::here("data-raw", "niis"), 
+        here::here("data-raw", "niis"),
+        glue::glue("nsub-{n_sub}_nstudy-{n_study}_iter-{iter}_ma-ib")),
+      z_ibma = fs::path_rel(z_ibma, start = here::here())) %>%
+    dplyr::ungroup()
+}
+
 calc_clusters <- function(cope_files, pthresh = 0.05){
   
   stopifnot(
@@ -260,7 +292,7 @@ tidy_ale <- function(
   
   stopifnot(
     {
-      nrow(ales) == 1
+      nrow(ale) == 1
     }
   )
   
@@ -292,8 +324,35 @@ calc_dice <- function(nii1, nii2, lower = 0.0001, na.rm = TRUE){
   2 * sum(abs1 * abs2, na.rm = na.rm) / (sum(abs1, na.rm = na.rm) + sum(abs2, na.rm = na.rm))
 }
 
-calc_dice_whole <- function(d, lower = 0.0001){
-  z |> 
+calc_dice_whole <- function(d, value, lower = 0.0001){
+  d |> 
+    mutate(
+      abs_v = abs({{value}}),
+      abs_pop = abs(pop)) |>
     dplyr::group_by(n_sub, iter, n_study) |> 
-    dplyr::summarise(dice = 2*sum((value > lower) * (pop > lower)) / (sum(value>lower) + sum(pop>lower)))
+    dplyr::summarise(
+      dice = 2*sum((abs_v > lower) * (abs_pop > lower)) / (sum(abs_v > lower) + sum(abs_pop > lower)),
+      .groups = "drop")
+}
+
+calc_tpr_whole <- function(d, value, lower = 0.0001){
+  d |> 
+    mutate(
+      abs_v = abs({{value}}),
+      abs_pop = abs(pop)) |>
+    dplyr::group_by(n_sub, iter, n_study) |> 
+    dplyr::summarise(
+      dice = sum((abs_v > lower) * (abs_pop > lower)) / sum(abs_pop > lower),
+      .groups = "drop")
+}
+
+calc_fpr_whole <- function(d, value, lower = 0.1){
+  d |> 
+    mutate(
+      abs_v = abs({{value}}),
+      abs_pop = abs(pop)) |>
+    dplyr::group_by(n_sub, iter, n_study) |> 
+    dplyr::summarise(
+      dice = sum((abs_v > lower) * (abs_pop < lower)) / sum(abs_pop < lower),
+      .groups = "drop")
 }
