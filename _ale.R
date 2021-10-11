@@ -49,40 +49,21 @@ list(
     do_z(cope_files2),
     pattern = map(cope_files2),
     format = "fst_tbl"),
-  # tar_target(
-  #   clusters,
-  #   calc_clusters(cope_files2, pthresh = 0.01),
-  #   cue = tar_cue(depend = FALSE),
-  #   pattern = map(cope_files2),
-  #   format = "fst_tbl",
-  #   resources = tar_resources(
-  #     future = tar_resources_future(
-  #       plan = tweak(
-  #         batchtools_sge, 
-  #         template = "tools/sge.tmpl", 
-  #         resources = list(mem_free = "10G"))))),
-  # tar_target(
-  #   clusters2,
-  #   clusters %>% 
-  #     dplyr::group_by(index, study, n_sub, iter, n_study) %>%
-  #     dplyr::filter(Value == max(Value)) %>%
-  #     dplyr::ungroup() %>%
-  #     dplyr::group_by(n_sub, iter, n_study) %>%
-  #     tar_group(),
-  #   iteration = "group",
-  #   format = "fst_tbl"),
-  # tar_target(
-  #   ale,
-  #   do_ale(clusters2, p=0.05, perm=1000, clust=0.05),
-  #   pattern = map(clusters2),
-  #   cue = tar_cue(depend = FALSE),
-  #   format = "file",
-  #   resources = tar_resources(
-  #     future = tar_resources_future(
-  #       plan = tweak(
-  #         batchtools_sge, 
-  #         template = "tools/sge.tmpl", 
-  #         resources = list(mem_free = "10G"))))),
+  tar_target(
+    python_source,
+    fs::path("python", "ale.py"),
+    format = "file"),
+  tar_target(
+    ale,
+    do_ale_py(z_img, python_source = here::here(python_source),
+    pattern = map(z_img),
+    format = "fst_tbl",
+    resources = tar_resources(
+      future = tar_resources_future(
+        plan = tweak(
+          batchtools_sge,
+          template = "tools/sge.tmpl",
+          resources = list(mem_free = "5G"))))),
   tar_target(
     z_pop,
     calc_z(cope5),

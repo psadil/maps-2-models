@@ -13,7 +13,7 @@ prep_cope_tbl <- function(cope_files, n_sub, n_study, iter=1){
     n_study=n_study)
 }
 
-do_z <- function(copes){
+do_z <- function(cope_files){
   stopifnot(
     {
       dplyr::n_distinct(cope_files$n_sub) == 1
@@ -23,6 +23,11 @@ do_z <- function(copes){
     }
   )
   
+  iter <- unique(cope_files$iter)
+  n_sub <- unique(cope_files$n_sub)
+  n_study <- unique(cope_files$n_study)
+  study <- unique(cope_files$study)
+  
   z_stat <- calc_z(cope_files$copes)
   z_file <- neurobase::writenii(
     z_stat, 
@@ -31,7 +36,7 @@ do_z <- function(copes){
     fs::path_rel(here::here())
   
   copes %>%
-    dplyr::distinct(n_sub, study, sample_sizes, n_study) %>%
+    dplyr::distinct(n_sub, study, iter, n_study) %>%
     dplyr::mutate(z = z_file)
 }
 
@@ -49,6 +54,40 @@ calc_z <- function(cope_files){
   neurobase::niftiarr(neurobase::readnii(cope_files[[1]]), z_stat)
 }
 
+do_ale_py <- function(
+  z_img, 
+  condaenv = "meta", 
+  python_source = here::here("python", "ale.py"),
+  mask_file = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain_mask.nii.gz")){
+  
+  stopifnot(
+    {
+      dplyr::n_distinct(z_img$n_sub) == 1
+      dplyr::n_distinct(z_img$study) == 1
+      dplyr::n_distinct(z_img$iter) == 1
+      dplyr::n_distinct(z_img$n_study) == 1
+    }
+  )
+  
+  d <- z_img %>%
+    dplyr::mutate(exp = glue::glue("study-{study}_nsub-{n_sub}_nstudy-{n_study}_iter-{iter}")) 
+  
+  reticulate::use_condaenv(condaenv = condaenv)
+  reticulate::source_python(file = python_source)
+  
+  d %>%
+    dplyr::select(-study) %>%
+    dplyr::distinct(n_sub, n_study, iter) %>%
+    dplyr::rowwise() %>%
+    dplyr::mutate(
+      z_ale = py$do_ale(
+        d, 
+        here::here(), 
+        here::here(), 
+        glue::glue("nsub-{tmp$n_sub}_nstudy-{tmp$n_study}_iter-{tmp$iter}"), 
+        mask_file)) %>%
+    dplyr::ungroup()
+}
 
 calc_clusters <- function(cope_files, pthresh = 0.05){
   
