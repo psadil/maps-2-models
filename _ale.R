@@ -23,10 +23,10 @@ list(
     feat_dirs,
     readr::read_lines(avail, num_threads=1),
     format = "qs"),
-  tar_target(n_sub, c(10)),
-  tar_target(n_study, c(10)),
-  tar_target(iter, seq_len(2)),
-  tar_target(cope5_index, seq_len(600)),
+  tar_target(n_sub, c(10, 20, 30)),
+  tar_target(n_study, c(10, 20, 30)),
+  tar_target(iter, seq_len(5)),
+  tar_target(cope5_index, seq_len(900)),
   tar_target(
     cope5,
     apply_reg_cope(feat_dirs[cope5_index], tar_path()),
@@ -55,11 +55,15 @@ list(
     format = "file"),
   tar_target(
     z_img2,
-    z_img,
+    z_img |>
+      dplyr::group_by(iter, n_study, n_sub) |>
+      tar_group(),
+    iteration = "group",
     format = "fst_tbl"),
   tar_target(
     ale,
-    do_ale_py(z_img, python_source = here::here(ale_py_script), condaenv = "meta"),
+    do_ale_py(z_img2, python_source = here::here(ale_py_script), condaenv = "meta"),
+    cue = tar_cue(depend = FALSE),
     pattern = map(z_img2),
     format = "fst_tbl",
     resources = tar_resources(
@@ -77,11 +81,11 @@ list(
         plan = tweak(
           batchtools_sge, 
           template = "tools/sge.tmpl", 
-          resources = list(mem_free = "20G")))))
-  # tar_target(
-  #   comparison,
-  #   avg_by_clust(ale, z_pop),
-  #   pattern = map(ale),
-  #   format = "fst_tbl"
-  # )
+          resources = list(mem_free = "20G"))))),
+  tar_target(
+    comparison,
+    avg_by_clust(ale, z_pop),
+    pattern = map(ale),
+    format = "fst_tbl"
+  )
 )

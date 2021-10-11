@@ -19,23 +19,24 @@ do_z <- function(cope_files){
       dplyr::n_distinct(cope_files$n_sub) == 1
       dplyr::n_distinct(cope_files$iter) == 1
       dplyr::n_distinct(cope_files$n_study) == 1
-      dplyr::n_distinct(cope_files$study) == unique(cope_files$n_study)
+      dplyr::n_distinct(cope_files$study) == 1
     }
   )
   
   iter <- unique(cope_files$iter)
   n_sub <- unique(cope_files$n_sub)
   n_study <- unique(cope_files$n_study)
-
+  study <- unique(cope_files$study)
+  
   z_stat <- calc_z(cope_files$copes)
   z_file <- neurobase::writenii(
     z_stat, 
     here::here(
-      "data-raw", "niis", glue::glue("nstudy-{n_study}_nsub-{n_sub}_iter-{iter}_z.nii.gz"))) %>%
+      "data-raw", "niis", glue::glue("nstudy-{n_study}_nsub-{n_sub}_study-{study}_iter-{iter}_z.nii.gz"))) %>%
     fs::path_rel(here::here())
   
   cope_files %>%
-    dplyr::distinct(n_sub, iter, n_study) %>%
+    dplyr::distinct(n_sub, iter, study, n_study) %>%
     dplyr::mutate(z = z_file)
 }
 
@@ -62,9 +63,9 @@ do_ale_py <- function(
   stopifnot(
     {
       dplyr::n_distinct(z_img$n_sub) == 1
-      dplyr::n_distinct(z_img$study) == 1
       dplyr::n_distinct(z_img$iter) == 1
       dplyr::n_distinct(z_img$n_study) == 1
+      dplyr::n_distinct(z_img$study) == unique(z_img$n_study)
     }
   )
   
@@ -78,7 +79,7 @@ do_ale_py <- function(
     dplyr::distinct(n_sub, n_study, iter) %>%
     dplyr::rowwise() %>%
     dplyr::mutate(
-      z_ale = py$do_ale(
+      z_ale = do_ale(
         d, 
         here::here(), 
         here::here("data-raw", "niis"), 
@@ -253,52 +254,42 @@ apply_reg_cope <- function(
 }
 
 
-avg_by_clust <- function(ales, z_pop){
+avg_by_clust <- function(
+  ale, 
+  z_pop, 
+  mask = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain_mask.nii.gz")){
   
-  z_file <- ales[stringr::str_detect(ales, "index-all_Z.nii.gz")] 
-  z <- neurobase::readnii(z_file)
+  stopifnot(
+    {
+      nrow(ales) == 1
+    }
+  )
   
-  clust <- ales[stringr::str_detect(ales, "clust.nii.gz")] %>%
-    neurobase::readnii()
+  mask_nii <- neurobase::readnii(mask)
   
-  clusts <- unique(as.vector(clust))
-  if(length(clusts) == 1) {
-    out <- tibble::tibble(cluster = clusts) %>%
-      dplyr::mutate(
-        avg = NA,
-        med = NA,
-        pop_avg = NA,
-        pop_med = NA,
-        N = NA,
-        dice = NA)
-  }else{
-    clusts <- clusts[clusts>0]
-    out <- tibble::tibble(cluster = clusts) %>%
-      dplyr::rowwise() %>%
-      dplyr::mutate(
-        avg = mean(z[clust == cluster]),
-        med = median(z[clust == cluster]),
-        pop_avg = mean(z_pop[clust == cluster]),
-        pop_med = median(z_pop[clust == cluster]),
-        N = sum(clust == cluster),
-        dice = calc_dice(z, z_pop)) %>%
-      dplyr::ungroup()
-  }
-  out %>%
-    dplyr::mutate(
-      file = z_file,
-      n_study = stringr::str_extract(z_file, "nstudy-([[:digit:]]+)") %>%
-        stringr::str_extract("[[:digit:]]+") %>%
-        as.numeric(),
-      n_sub = stringr::str_extract(z_file, "nsub-([[:digit:]]+)") %>%
-        stringr::str_extract("[[:digit:]]+") %>%
-        as.numeric(),
-      iter = stringr::str_extract(z_file, "iter-([[:digit:]]+)") %>%
-        stringr::str_extract("[[:digit:]]+") %>%
-        as.numeric()  
-    )
-}
+  pop <-  neurobase::img_indices(z_pop, mask = mask_nii, add_values = TRUE) |>
+    tibble::as_tibble() |>
+    dplyr::rename(pop = value)
+  
+  p <- neurobase::niftiarr(z_pop, neurobase::readnii(stringr::str_replace(ale$z_ale, "_z", "_p"))) |>
+    neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
+    tibble::as_tibble() |>
+    dplyr::rename(p = value)
+  
+  st <- neurobase::niftiarr(z_pop, neurobase::readnii(stringr::str_replace(ale$z_ale, "_z", "_stat"))) |>
+    neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
+    tibble::as_tibble() |>
+    dplyr::rename(stat = value)
 
+  z <- neurobase::niftiarr(z_pop, neurobase::readnii(ale$z_ale)) |>
+    neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
+    tibble::as_tibble() |>
+    dplyr::rename(Z = value) |>
+    tidyr::crossing(dplyr::select(ale, -z_ale)) |>
+    dplyr::left_join(p, by = c("x","y","z")) |>
+    dplyr::left_join(st, by = c("x","y","z"))
+  z
+}
 
 calc_dice <- function(nii1, nii2, lower = 0.0001, na.rm = TRUE){
   abs1 <- abs(nii1) > lower
@@ -306,3 +297,8 @@ calc_dice <- function(nii1, nii2, lower = 0.0001, na.rm = TRUE){
   2 * sum(abs1 * abs2, na.rm = na.rm) / (sum(abs1, na.rm = na.rm) + sum(abs2, na.rm = na.rm))
 }
 
+calc_dice_whole <- function(d, lower = 0.0001){
+  z |> 
+    dplyr::group_by(n_sub, iter, n_study) |> 
+    dplyr::summarise(dice = 2*sum((value > lower) * (pop > lower)) / (sum(value>lower) + sum(pop>lower)))
+}
