@@ -8,5 +8,5 @@
 
 module load conda_R/4.1.x
 
-Rscript -e "targets::tar_make_future(script='_ale.R', workers = 20)"
+Rscript -e "targets::tar_make_future(script='_ale.R', workers = 100)"
 

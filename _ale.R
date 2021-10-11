@@ -81,7 +81,7 @@ list(
         plan = tweak(
           batchtools_sge, 
           template = "tools/sge.tmpl", 
-          resources = list(mem_free = "20G"))))),
+          resources = list(mem_free = "30G"))))),
   tar_target(
     comparison,
     tidy_ale(ale),
