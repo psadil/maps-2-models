@@ -12,6 +12,8 @@ library(future)
 library(future.batchtools)
 plan(batchtools_sge, template = "tools/sge.tmpl")
 
+
+
 list(
   tar_target(
     avail,
@@ -21,9 +23,9 @@ list(
     feat_dirs,
     readr::read_lines(avail, num_threads=1),
     format = "qs"),
-  tar_target(n_sub, c(5, 10, 20)),
-  tar_target(n_study, c(5, 10, 20, 30)),
-  tar_target(iter, seq_len(5)),
+  tar_target(n_sub, c(10)),
+  tar_target(n_study, c(10)),
+  tar_target(iter, seq_len(2)),
   tar_target(cope5_index, seq_len(600)),
   tar_target(
     cope5,
@@ -43,39 +45,44 @@ list(
     iteration = "group",
     format = "fst_tbl"),
   tar_target(
-    clusters,
-    calc_clusters(cope_files2, pthresh = 0.01),
-    cue = tar_cue(depend = FALSE),
+    z_img,
+    do_z(cope_files2),
     pattern = map(cope_files2),
-    format = "fst_tbl",
-    resources = tar_resources(
-      future = tar_resources_future(
-        plan = tweak(
-          batchtools_sge, 
-          template = "tools/sge.tmpl", 
-          resources = list(mem_free = "10G"))))),
-  tar_target(
-    clusters2,
-    clusters %>% 
-      dplyr::group_by(index, study, n_sub, iter, n_study) %>%
-      dplyr::filter(Value == max(Value)) %>%
-      dplyr::ungroup() %>%
-      dplyr::group_by(n_sub, iter, n_study) %>%
-      tar_group(),
-    iteration = "group",
     format = "fst_tbl"),
-  tar_target(
-    ale,
-    do_ale(clusters2, p=0.05, perm=1000, clust=0.05),
-    pattern = map(clusters2),
-    cue = tar_cue(depend = FALSE),
-    format = "file",
-    resources = tar_resources(
-      future = tar_resources_future(
-        plan = tweak(
-          batchtools_sge, 
-          template = "tools/sge.tmpl", 
-          resources = list(mem_free = "10G"))))),
+  # tar_target(
+  #   clusters,
+  #   calc_clusters(cope_files2, pthresh = 0.01),
+  #   cue = tar_cue(depend = FALSE),
+  #   pattern = map(cope_files2),
+  #   format = "fst_tbl",
+  #   resources = tar_resources(
+  #     future = tar_resources_future(
+  #       plan = tweak(
+  #         batchtools_sge, 
+  #         template = "tools/sge.tmpl", 
+  #         resources = list(mem_free = "10G"))))),
+  # tar_target(
+  #   clusters2,
+  #   clusters %>% 
+  #     dplyr::group_by(index, study, n_sub, iter, n_study) %>%
+  #     dplyr::filter(Value == max(Value)) %>%
+  #     dplyr::ungroup() %>%
+  #     dplyr::group_by(n_sub, iter, n_study) %>%
+  #     tar_group(),
+  #   iteration = "group",
+  #   format = "fst_tbl"),
+  # tar_target(
+  #   ale,
+  #   do_ale(clusters2, p=0.05, perm=1000, clust=0.05),
+  #   pattern = map(clusters2),
+  #   cue = tar_cue(depend = FALSE),
+  #   format = "file",
+  #   resources = tar_resources(
+  #     future = tar_resources_future(
+  #       plan = tweak(
+  #         batchtools_sge, 
+  #         template = "tools/sge.tmpl", 
+  #         resources = list(mem_free = "10G"))))),
   tar_target(
     z_pop,
     calc_z(cope5),
@@ -86,10 +93,10 @@ list(
           batchtools_sge, 
           template = "tools/sge.tmpl", 
           resources = list(mem_free = "20G"))))),
-  tar_target(
-    comparison,
-    avg_by_clust(ale, z_pop),
-    pattern = map(ale),
-    format = "fst_tbl"
-  )
+  # tar_target(
+  #   comparison,
+  #   avg_by_clust(ale, z_pop),
+  #   pattern = map(ale),
+  #   format = "fst_tbl"
+  # )
 )

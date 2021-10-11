@@ -13,6 +13,27 @@ prep_cope_tbl <- function(cope_files, n_sub, n_study, iter=1){
     n_study=n_study)
 }
 
+do_z <- function(copes){
+  stopifnot(
+    {
+      dplyr::n_distinct(cope_files$n_sub) == 1
+      dplyr::n_distinct(cope_files$study) == 1
+      dplyr::n_distinct(cope_files$iter) == 1
+      dplyr::n_distinct(cope_files$n_study) == 1
+    }
+  )
+  
+  z_stat <- calc_z(cope_files$copes)
+  z_file <- neurobase::writenii(
+    z_stat, 
+    here::here(
+      "data-raw", "niis", glue::glue("nstudy-{n_study}_nsub-{n_sub}_study-{study}_iter-{iter}_z.nii.gz"))) %>%
+    fs::path_rel(here::here())
+  
+  copes %>%
+    dplyr::distinct(n_sub, study, sample_sizes, n_study) %>%
+    dplyr::mutate(z = z_file)
+}
 
 calc_z <- function(cope_files){
   copes <- purrr::map(cope_files, ~neurobase::readnii(.x)@.Data) %>%
