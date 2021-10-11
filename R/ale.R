@@ -35,7 +35,8 @@ do_z <- function(cope_files){
       "data-raw", "niis", glue::glue("nstudy-{n_study}_nsub-{n_sub}_study-{study}_iter-{iter}_z.nii.gz"))) %>%
     fs::path_rel(here::here())
   
-  copes %>%
+  cope_files %>%
+    dplyr::select(n_sub, study, iter, n_study) %>%
     dplyr::distinct(n_sub, study, iter, n_study) %>%
     dplyr::mutate(z = z_file)
 }
