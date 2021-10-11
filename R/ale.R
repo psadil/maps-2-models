@@ -77,16 +77,16 @@ do_ale_py <- function(
   reticulate::source_python(file = python_source)
   
   d %>%
-    dplyr::select(-study) %>%
     dplyr::distinct(n_sub, n_study, iter) %>%
     dplyr::rowwise() %>%
     dplyr::mutate(
       z_ale = py$do_ale(
         d, 
         here::here(), 
-        here::here(), 
-        glue::glue("nsub-{tmp$n_sub}_nstudy-{tmp$n_study}_iter-{tmp$iter}"), 
-        mask_file)) %>%
+        here::here("data-raw", "niis"), 
+        glue::glue("nsub-{n_sub}_nstudy-{n_study}_iter-{iter}"), 
+        mask_file),
+      z_ale = fs::path_rel(z_ale, start = here::here())) %>%
     dplyr::ungroup()
 }
 
