@@ -254,9 +254,8 @@ apply_reg_cope <- function(
 }
 
 
-avg_by_clust <- function(
+tidy_ale <- function(
   ale, 
-  z_pop, 
   mask = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain_mask.nii.gz")){
   
   stopifnot(
@@ -267,21 +266,17 @@ avg_by_clust <- function(
   
   mask_nii <- neurobase::readnii(mask)
   
-  pop <-  neurobase::img_indices(z_pop, mask = mask_nii, add_values = TRUE) |>
-    tibble::as_tibble() |>
-    dplyr::rename(pop = value)
-  
-  p <- neurobase::niftiarr(z_pop, neurobase::readnii(stringr::str_replace(ale$z_ale, "_z", "_p"))) |>
+  p <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$z_ale, "_z", "_p"))) |>
     neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
     tibble::as_tibble() |>
     dplyr::rename(p = value)
   
-  st <- neurobase::niftiarr(z_pop, neurobase::readnii(stringr::str_replace(ale$z_ale, "_z", "_stat"))) |>
+  st <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$z_ale, "_z", "_stat"))) |>
     neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
     tibble::as_tibble() |>
     dplyr::rename(stat = value)
 
-  z <- neurobase::niftiarr(z_pop, neurobase::readnii(ale$z_ale)) |>
+  z <- neurobase::niftiarr(mask_nii, neurobase::readnii(ale$z_ale)) |>
     neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
     tibble::as_tibble() |>
     dplyr::rename(Z = value) |>

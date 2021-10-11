@@ -84,7 +84,7 @@ list(
           resources = list(mem_free = "20G"))))),
   tar_target(
     comparison,
-    avg_by_clust(ale, z_pop),
+    tidy_ale(ale),
     pattern = map(ale),
     format = "fst_tbl"
   )
