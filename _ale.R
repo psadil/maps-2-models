@@ -92,7 +92,7 @@ list(
         plan = tweak(
           batchtools_sge, 
           template = "tools/sge.tmpl", 
-          resources = list(mem_free = "20G"))))),
+          resources = list(mem_free = "20G")))))
   # tar_target(
   #   comparison,
   #   avg_by_clust(ale, z_pop),

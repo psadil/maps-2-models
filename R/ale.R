@@ -13,7 +13,7 @@ prep_cope_tbl <- function(cope_files, n_sub, n_study, iter=1){
     n_study=n_study)
 }
 
-do_z <- function(copes){
+do_z <- function(cope_files){
   stopifnot(
     {
       dplyr::n_distinct(cope_files$n_sub) == 1
@@ -23,6 +23,11 @@ do_z <- function(copes){
     }
   )
   
+  iter <- unique(cope_files$iter)
+  n_sub <- unique(cope_files$n_sub)
+  n_study <- unique(cope_files$n_study)
+  study <- unique(cope_files$study)
+  
   z_stat <- calc_z(cope_files$copes)
   z_file <- neurobase::writenii(
     z_stat, 
@@ -30,8 +35,9 @@ do_z <- function(copes){
       "data-raw", "niis", glue::glue("nstudy-{n_study}_nsub-{n_sub}_study-{study}_iter-{iter}_z.nii.gz"))) %>%
     fs::path_rel(here::here())
   
-  copes %>%
-    dplyr::distinct(n_sub, study, sample_sizes, n_study) %>%
+  cope_files %>%
+    dplyr::select(n_sub, study, iter, n_study) %>%
+    dplyr::distinct(n_sub, study, iter, n_study) %>%
     dplyr::mutate(z = z_file)
 }
 
