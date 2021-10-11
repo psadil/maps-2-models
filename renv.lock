@@ -931,6 +931,11 @@
       "Repository": "CRAN",
       "Hash": "97def703420c8ab10d8f0e6c72101e02"
     },
+    "qs": {
+      "Package": "qs",
+      "Version": "0.25.1",
+      "Source": "Repository"
+    },
     "ragg": {
       "Package": "ragg",
       "Version": "1.1.3",
