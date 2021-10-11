@@ -50,12 +50,12 @@ list(
     pattern = map(cope_files2),
     format = "fst_tbl"),
   tar_target(
-    python_source,
+    ale_py_script,
     fs::path("python", "ale.py"),
     format = "file"),
   tar_target(
     ale,
-    do_ale_py(z_img, python_source = here::here(python_source),
+    do_ale_py(z_img, python_source = here::here(ale_py_script), condaenv = "meta"),
     pattern = map(z_img),
     format = "fst_tbl",
     resources = tar_resources(
