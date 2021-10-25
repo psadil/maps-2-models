@@ -7,4 +7,8 @@ data-raw/niis
 data-raw/task_fMRI
 data-raw/*nii*
 data-raw/*.jar
+data-raw/task_fMRI
+data-raw/T1
 _ale/objects
+
+.ipynb_checkpoints

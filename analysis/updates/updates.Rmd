@@ -1,0 +1,209 @@
+---
+title: "October 12"
+output: 
+  bookdown::pdf_document2:
+    number_sections: false
+    toc: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = TRUE, dev = "ragg_png", dpi=200, fig.width = 5)
+library(tidyverse)
+library(targets)
+library(effectsize)
+library(patchwork)
+
+calc_dice_whole <- function(d, value, lower = 0.0001){
+  d |> 
+    mutate(
+      abs_v = abs({{value}}),
+      abs_pop = abs(pop)) |>
+    dplyr::group_by(n_sub, iter, n_study) |> 
+    dplyr::summarise(
+      dice = 2*sum((abs_v > lower) * (abs_pop > lower)) / (sum(abs_v > lower) + sum(abs_pop > lower)),
+      .groups = "drop")
+}
+
+calc_tpr_whole <- function(d, value, lower = 0.0001){
+  d |> 
+    mutate(
+      abs_v = abs({{value}}),
+      abs_pop = abs(pop)) |>
+    dplyr::group_by(n_sub, iter, n_study) |> 
+    dplyr::summarise(
+      dice = sum((abs_v > lower) * (abs_pop > lower)) / sum(abs_pop > lower),
+      .groups = "drop")
+}
+
+calc_fpr_whole <- function(d, value, lower = 0.1){
+  d |> 
+    mutate(
+      abs_v = abs({{value}}),
+      abs_pop = abs(pop)) |>
+    dplyr::group_by(n_sub, iter, n_study) |> 
+    dplyr::summarise(
+      dice = sum((abs_v > lower) * (abs_pop < lower)) / sum(abs_pop < lower),
+      .groups = "drop")
+}
+
+
+Sys.setenv(TAR_PROJECT = "ale")
+```
+
+
+```{r, data}
+
+mask_file <- "/home/psadil/fsl/data/standard/MNI152_T1_2mm_brain_mask.nii.gz"
+
+tar_load(comparison)
+tar_load(z_pop)
+
+mask_nii <- neurobase::readnii(mask_file) 
+
+pop <- neurobase::img_indices(z_pop, mask=mask_nii, add_values = TRUE) |>
+  as_tibble() |>
+  rename(pop = value) |>
+  mutate(pop = effectsize::z_to_d(pop, n = 900)[,1])
+
+seg <- neurobase::img_indices(MNITemplate::readMNISeg(res="2mm"), add_values=TRUE) |>
+  as_tibble() |>
+  filter(value == 2) |>
+  select(-value)
+
+tmp <- comparison  |>
+  semi_join(seg, by = c("x","y","z")) 
+
+# ibma
+ibma <- neurobase::niftiarr(mask_nii, neurobase::readnii("data-raw/niis/nsub-10_nstudy-10_iter-1_ma-ib_z.nii.gz")) |>
+  neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
+  as_tibble() |>
+  semi_join(seg, by = c("x", "y", "z")) |>
+  mutate(value = z_to_d(value, n=10, paired = TRUE)[,1])
+
+```
+
+
+## UK Biobank
+
+### Oracle Grant
+
+Last Friday, I submitted the grant to Oracle. I’m told that the process has gotten a bit slower since you submitted last year, but to expect a decision within a few weeks. 
+
+### Meta Analysis
+
+#### Coordinate-Based
+
+Last week, I mentioned that I was running in to two issues. The first issue was with regards to scaling; I was concerned that the “gold-standard” stat maps I was looking at were substantially larger than the MNI brain mask. This turned out to be a non-issue; although I thought that the parameter estimate files were skull-stripped, they were instead only masked with the MNI skull. The “gold-standard” images appeared larger than the MNI brain mask because they contained more than brain tissue. 
+
+The second issue was with regards to translating the z-scores from the image-based meta-analysis into a measure of effect size. We looked at a few examples where I’d plotted the cluster-wise average z-score from meta-analyses against the cluster-wise average Cohen’s d from the gold standard. But I had thresholded the plots based on z-scores, and so it was difficult to see patterns. This week. I've plotted the voxel-wise z-statistics against the voxel-size Cohen's d, again grouped by number of participants per study and number of studies per analysis (Figure \@ref(fig:zbyd)). Only voxels within a gray matter mask are plotted.
+
+```{r, zbyd, fig.cap="Relationship between ALE z-statistic and gold standard Cohen's d. Points correspond to voxels within a gray matter mask. Only voxels with positive Cohen's d are shown. Solid line has unit slope and intercept 0.", fig.height=4, fig.width=4}
+tmp |>
+  filter(Z > 0) |>
+  group_by(n_sub, n_study, x, y, z) |>
+  summarise(Z = mean(Z), .groups = "drop") |>
+  left_join(pop, by = c("x","y","z")) |>
+  filter(pop > 0) |>
+  ggplot(aes(x = pop, y = Z)) +
+  facet_grid(n_sub ~ n_study, labeller = label_both) +
+  geom_abline(slope=1, intercept = 0) +
+  geom_point(alpha = .01) +
+  # coord_fixed() +
+  xlab("Cohen's d (Population)") +
+  ylab("z-stat (Meta)")
+```
+
+There is some linear or nearly linear relationship between these values within groups of voxels, a relationship that depends on both the number of participants per study and the number of studies per analysis. However, there groups of voxels within individual studies show "streaks". Those streaks often comprise voxels within a cluster. I'm still not seeing a way that ALE can recover the voxel-wise effect sizes. But now I'm thinking that there must be a way to recover the "effect size" of the clusters themselves by incorporating the spatial extent of each cluster. This seems like something that would have been done before, although I'm not aware of a common method for doing so.
+
+The spatial overlap of active voxels shows a simpler picture (Figure \@ref(fig:cbmadice)); increasing the number of observations within a meta-analysis increases the dice coefficient. Note that these coefficients are much smaller than we looked at last week. Last week, we were looking at coefficients calculated from voxels restricted to clusters from the meta-analysis, whereas these these coefficients were calculated across the all of gray matter. Also, see that increasing the number of participants and studies also increases the false positive rate. 
+
+```{r, cbmadice, fig.cap="Spatial Overlap within Gray Matter. In both meta-analyses and gold standard, voxels were thresholded at p < 0.01. Points correspond to separate meta-analysis, five per combination of study and participant counts.", fig.width=3, fig.width=7}
+
+thresh <- 0.99
+
+a <- tmp |>
+  left_join(pop |> mutate(pop = pop*sqrt(900)), by = c("x","y","z")) |>
+  calc_dice_whole(Z, lower = qnorm(thresh)) |>
+  ggplot(aes(x=n_study, y=dice)) +
+  facet_wrap(~n_sub, labeller = label_both) +
+  geom_point(alpha = 0.5) +
+  scale_y_continuous(
+    name = "Dice Coefficient",
+    limits = c(0,0.5))
+
+b <- tmp |>
+  left_join(pop |> mutate(pop = pop*sqrt(900)), by = c("x","y","z")) |>
+  calc_tpr_whole(Z, lower = qnorm(thresh)) |>
+  ggplot(aes(x=n_study, y=dice)) +
+  facet_wrap(~n_sub, labeller = label_both) +
+  geom_point(alpha = 0.5) +
+  scale_y_continuous(
+    name = "True Positive Rate",
+    limits = c(0, 0.25))
+
+c <- tmp |>
+  left_join(pop |> mutate(pop = pop*sqrt(900)), by = c("x","y","z")) |>
+  calc_fpr_whole(Z, lower = qnorm(thresh)) |>
+  ggplot(aes(x=n_study, y=dice)) +
+  facet_wrap(~n_sub, labeller = label_both) +
+  geom_point(alpha = 0.5) +
+  scale_y_continuous(
+    name = "False Positive Rate",
+    limits = c(0,0.25))
+
+a | (b + c) + plot_layout(nrow=2)
+
+```
+
+
+#### Image-Based
+
+The image-based meta analysis has a simple way of calculating effect sizes. However, I have only used a meta-analysis that is a fixed effects analysis, whereas the gold-standard was set up as a mixed effects. I believe that this is causing a mismatch between the effect sizes. For an example, see Figure \@ref(fig:ibma).
+
+```{r, ibma, fig.cap="Example Comparison Between Image-Based Meta-Analysis and Population Gold Standard. The population-based effects were calculated with a mixed effects analysis, whereas the meta-analysis was done with a fixed effects (Stouffer's weighted method). Meta-analysis is of 10 studies, each with 10 participants.", fig.height=3}
+
+# p <- tmp |>
+#   filter(Z > 0) |>
+#   group_by(n_sub, n_study, x, y, z) |>
+#   summarise(d = mean(d), .groups = "drop") |>
+#   left_join(pop, by = c("x","y","z")) |>
+#   filter(pop > 0) |>
+#   ggplot(aes(x = pop, y = d)) +
+#   facet_grid(n_sub ~ n_study, labeller = label_both) +
+#   geom_abline(slope=1, intercept = 0) +
+#   geom_point(alpha = .01) +
+#   # coord_fixed() +
+#   xlab("Cohen's d (Population)") +
+#   ylab("z-stat / sqrt(n) (Meta)")
+
+# ggsave("tmp3.png", p, device = ragg::agg_png)
+
+
+# p2 <- tmp |>
+#   filter(pop > 0) |>
+#   group_by(n_sub, n_study, x, y, z) |>
+#   summarise(Z = mean(Z), p = mean(p), stat=mean(stat), .groups = "drop") |>
+#   mutate(pop = pop / sqrt(n_study)) |>
+#   left_join(ibma, by = c("x", "y", "z")) |>
+#   ggplot(aes(x = pop, y = value)) +
+#   facet_grid(n_sub ~ n_study, labeller = label_both) +
+#   geom_point(alpha = .01) +
+#   coord_fixed() +
+#   xlab("Cohen's d (Population)") +
+# #   ylab("Cohen's d (IB Meta)")
+
+ibma |>
+  left_join(pop, by = c("x", "y", "z")) |>
+  ggplot(aes(x = pop, y = value)) +
+  geom_point(alpha = .01) +
+  geom_abline(slope=1, intercept = 0) +
+  coord_fixed() +
+  xlab("Cohen's d (Population; MFX)") +
+  ylab("Cohen's d (IB Meta; FFX)")
+
+```
+
+
+## Other
+
+Heejung asked about processing the spacetop data. I don't think this was directed at me, but is there something I could follow up on?
