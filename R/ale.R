@@ -392,5 +392,10 @@ tidy_ibma <- function(ibma){
   neurobase::niftiarr(mask_nii, neurobase::readnii(ibma$z_ibma)) |>
     neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
     tibble::as_tibble() |>
-    dplyr::semi_join(seg, by = c("x", "y", "z")) 
+    dplyr::semi_join(seg, by = c("x", "y", "z")) |>
+    dplyr::mutate(
+      n_sub = ibma$n_sub,
+      iter = ibma$iter,
+      n_study = ibma$n_study
+    )
 }
