@@ -4426,21 +4426,6 @@ comparison_2eac03f3|branch|7bcc0f32db431211|7412f8050edd121e|8009d646d6ef611e|-1
 comparison|pattern|495955985130d4ce|7412f8050edd121e||922833440||||71995640|fst_tbl|vector||comparison_2d6314d2*comparison_bd20f43a*comparison_31e1becd*comparison_93bc4d9e*comparison_87d1dd09*comparison_dcee8145*comparison_8f99d119*comparison_1a5e9547*comparison_f87816d6*comparison_942ac1de*comparison_bdeabd50*comparison_8d479f80*comparison_74b457dc*comparison_0ebc099f*comparison_17a5ba70*comparison_6c08b9c8*comparison_2c52785a*comparison_1c072dfb*comparison_5a93c1ea*comparison_54d551cc*comparison_91d3a8f7*comparison_f6863972*comparison_88039453*comparison_6ba94f95*comparison_de375ce4*comparison_5578711a*comparison_f1fcd533*comparison_8e53f9bb*comparison_da270059*comparison_7cedf789*comparison_5ca0bd9d*comparison_7055345b*comparison_717a9524*comparison_58ef5276*comparison_c19a555c*comparison_b44c852d*comparison_6b415c10*comparison_2771bed4*comparison_7f26dd2a*comparison_f56a534a*comparison_9fd356dc*comparison_bd6512d9*comparison_9f60094f*comparison_6395bbe7*comparison_9bc2c11e*comparison_5eca9150*comparison_96e9f5f0*comparison_75eb93d0*comparison_9418a66c*comparison_6538d596*comparison_c9484c3d*comparison_e6bee253*comparison_99be4f05*comparison_f52ba72c*comparison_18f6be95*comparison_3594d06f*comparison_2eac03f3*comparison_04aa3876*comparison_752dcda9*comparison_0d246d84|124.272||
 ibma_2eac03f3|branch|374303d6f383e4df|080285dc7dd403cb|ed5d59b58a4cb74a|-431630992||t18912.1745202997s|a2c8acb31b0e29cd|806|fst_tbl|vector|ibma||54.562||
 ibma|pattern|5133ce0b63788bc8|080285dc7dd403cb||723522486||||48495|fst_tbl|vector||ibma_2d6314d2*ibma_bd20f43a*ibma_31e1becd*ibma_93bc4d9e*ibma_87d1dd09*ibma_dcee8145*ibma_8f99d119*ibma_1a5e9547*ibma_f87816d6*ibma_942ac1de*ibma_bdeabd50*ibma_8d479f80*ibma_74b457dc*ibma_0ebc099f*ibma_17a5ba70*ibma_6c08b9c8*ibma_2c52785a*ibma_1c072dfb*ibma_5a93c1ea*ibma_54d551cc*ibma_91d3a8f7*ibma_f6863972*ibma_88039453*ibma_6ba94f95*ibma_de375ce4*ibma_5578711a*ibma_f1fcd533*ibma_8e53f9bb*ibma_da270059*ibma_7cedf789*ibma_5ca0bd9d*ibma_7055345b*ibma_717a9524*ibma_58ef5276*ibma_c19a555c*ibma_b44c852d*ibma_6b415c10*ibma_2771bed4*ibma_7f26dd2a*ibma_f56a534a*ibma_9fd356dc*ibma_bd6512d9*ibma_9f60094f*ibma_6395bbe7*ibma_9bc2c11e*ibma_5eca9150*ibma_96e9f5f0*ibma_75eb93d0*ibma_9418a66c*ibma_6538d596*ibma_c9484c3d*ibma_e6bee253*ibma_99be4f05*ibma_f52ba72c*ibma_18f6be95*ibma_3594d06f*ibma_2eac03f3*ibma_04aa3876*ibma_752dcda9*ibma_0d246d84|18960.046||
-write_all_studies|function|6cb12175b492833c||||||||||||||
-calc_z|function|55e46709dfdb634b||||||||||||||
-do_ibma_py|function|2db25781c5f9fa40||||||||||||||
-apply_reg_cope|function|8de87ea02720f8c5||||||||||||||
-write_study|function|37fe4fa1a4280b8d||||||||||||||
-calc_t_vcope|function|355489551e7c6db2||||||||||||||
-calc_dice|function|04bc467fa37698b5||||||||||||||
-prep_cope_tbl|function|cd2b510f505a2786||||||||||||||
-tidy_ale|function|1b6a89c466d2561b||||||||||||||
-get_stats_dirs|function|531eb667681b5a7c||||||||||||||
-calc_clusters|function|8f3b6e0c6b22a987||||||||||||||
-do_z|function|50614899d43df754||||||||||||||
-do_ale|function|9cebd26a834a1ae2||||||||||||||
-do_t|function|3f55d82f0795c0cb||||||||||||||
-do_ale_py|function|853cc86e1fba2da1||||||||||||||
 n_study|stem|d44b454654abf5cb|3fa777833973851a|a3dad144c40657ed|-1428568592||t18925.7502499191s|7e02ad38317bcde4|55|rds|vector||n_study_d5551afe*n_study_ab1b214a|0.031||
 n_sub|stem|87b7bcec8cb550be|66c0434d17748906|a3dad144c40657ed|-1161523035||t18925.7502607059s|b6d2e014b07bc296|51|rds|vector||n_sub_d5551afe|0.039||
 ale_py_script|stem|320d583ac1cab554|63c71856da5de1c5|c3b5fc02cdc369c1|-745331008|python/ale.py|t18925.7495274781s|037877574d0cd39f|1600|file|vector|||0.034||
@@ -4484,3 +4469,19 @@ ale_76895f71|branch|2145029e2b5fe562|172a45f845f37c7d|cc501fd15cd023fb|-94790617
 ale_ee802f9f|branch|56a952010142ac07|172a45f845f37c7d|30ec8cbe21d79832|-922257851||t18925.7593696309s|0f150c5f10832ff6|582|fst_tbl|vector|ale||456.888||
 ale|pattern|f3390504e36dc417|172a45f845f37c7d||940652342||||1164|fst_tbl|vector||ale_ee802f9f*ale_76895f71|1059.816||
 comparison_ea2d7e3a|branch||7412f8050edd121e|576b5d6613afda04|-2033858075||t18925.7595756282s||0|fst_tbl|vector|comparison||0.978||Files not found
+write_all_studies|function|6cb12175b492833c||||||||||||||
+calc_z|function|55e46709dfdb634b||||||||||||||
+do_ibma_py|function|2db25781c5f9fa40||||||||||||||
+apply_reg_cope|function|8de87ea02720f8c5||||||||||||||
+write_study|function|37fe4fa1a4280b8d||||||||||||||
+calc_t_vcope|function|355489551e7c6db2||||||||||||||
+calc_dice|function|04bc467fa37698b5||||||||||||||
+prep_cope_tbl|function|cd2b510f505a2786||||||||||||||
+tidy_ale|function|36c3745aaa81520c||||||||||||||
+get_stats_dirs|function|531eb667681b5a7c||||||||||||||
+calc_clusters|function|8f3b6e0c6b22a987||||||||||||||
+do_z|function|50614899d43df754||||||||||||||
+do_ale|function|9cebd26a834a1ae2||||||||||||||
+do_t|function|3f55d82f0795c0cb||||||||||||||
+do_ale_py|function|853cc86e1fba2da1||||||||||||||
+comparison_7202d7f5|branch||7412f8050edd121e|576ab1fa404637db|568559438||t18925.7765406621s||0|fst_tbl|vector|comparison||3.043||Files not found
