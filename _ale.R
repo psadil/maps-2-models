@@ -23,8 +23,8 @@ list(
     feat_dirs,
     readr::read_lines(avail, num_threads=1),
     format = "qs"),
-  tar_target(n_sub, c(10)),
-  tar_target(n_study, c(10)),
+  tar_target(n_sub, c(10, 30)),
+  tar_target(n_study, c(10, 30)),
   tar_target(iter, seq_len(1)),
   tar_target(cope5_index, seq_len(900)),
   tar_target(
