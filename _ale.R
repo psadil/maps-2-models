@@ -96,5 +96,10 @@ list(
     ibma,
     do_ibma_py(ale, python_source = here::here(ibma_py_script), condaenv = "meta"),
     pattern = map(ale),
+    format = "fst_tbl"),
+  tar_target(
+    ibma_summary,
+    tidy_ibma(ibma),
+    pattern = map(ibma),
     format = "fst_tbl")
 )

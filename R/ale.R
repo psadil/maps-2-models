@@ -374,3 +374,23 @@ calc_dice <- function(nii1, nii2, lower = 0.0001, na.rm = TRUE){
   2 * sum(abs1 * abs2, na.rm = na.rm) / (sum(abs1, na.rm = na.rm) + sum(abs2, na.rm = na.rm))
 }
 
+
+tidy_ibma <- function(ibma){
+  stopifnot(
+    {
+      nrow(ibma) == 1
+    }
+  )
+  
+  mask_nii <- fslr::mni_img(mm="2", mask=TRUE, brain=TRUE) 
+  
+  seg <- neurobase::img_indices(MNITemplate::readMNISeg(res="2mm"), add_values=TRUE) |>
+    tibble::as_tibble() |>
+    dplyr::filter(value == 2) |>
+    dplyr::select(-value)
+  
+  neurobase::niftiarr(mask_nii, neurobase::readnii(z_ibma)) |>
+    neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
+    tibble::as_tibble() |>
+    dplyr::semi_join(seg, by = c("x", "y", "z")) 
+}
