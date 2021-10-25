@@ -5,7 +5,7 @@ import pandas as pd
 
 import nimare
 from nimare.meta.cbma import ALE
-from nimare.transforms import ImagesToCoordinates,ImageTransformer
+from nimare.transforms import ImagesToCoordinates,transform_images
 
 def as_dict(d: tuple) -> dict:
   ds = {
@@ -43,12 +43,16 @@ def do_ale(
       x.update(as_dict(row))
           
     dset = nimare.dataset.Dataset(x, mask=mask)
-
-    # out_dir followed by in_dir ensures that the newly created z images
-    # are saved in the out_dir
-    dset.update_path(new_path=out_dir)
-    dset = ImageTransformer(target="z").transform(dset)
     dset.update_path(new_path=in_dir)
+
+    temp_images = transform_images(
+      dset.images,
+      target="z",
+      masker=dset.masker,
+      metadata_df=dset.metadata,
+      out_dir=out_dir,
+      overwrite=True)
+    dset.images = temp_images
     
     dset = ImagesToCoordinates(
       merge_strategy="replace", 
