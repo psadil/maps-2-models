@@ -85,7 +85,7 @@ calc_t_vcope <- function(cope_files){
   t_stat[is.na(t_stat)] <- 0
   sds[is.na(sds)] <- 0
   t_img <- neurobase::niftiarr(neurobase::readnii(cope_files[[1]]), t_stat)
-  varcope_img <- neurobase::niftiarr(neurobase::readnii(cope_files[[1]]), sds^2)
+  varcope_img <- neurobase::niftiarr(neurobase::readnii(cope_files[[1]]), (sds/sqrt(n))^2)
   list("t" = t_img, "varcope" = varcope_img)
 }
 
