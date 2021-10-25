@@ -13,8 +13,9 @@ def do_imba(
           
     dset = nimare.dataset.Dataset.load(dset_fname)
     dset.update_path(in_dir)
-    meta = ibma.Stouffers(use_sample_size=True, resample=False)
-    meta.fit(dset)
+    dset2 = nimare.transforms.ImageTransformer(target=["varcope","beta"]).transform(dset)
+    meta = ibma.DerSimonianLaird()
+    meta.fit(dset2)
     meta.results.save_maps(output_dir=out_dir, prefix=prefix)
     meta.save(os.path.join(out_dir, f"{prefix}_dset.pklz"))
 

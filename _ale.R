@@ -23,9 +23,9 @@ list(
     feat_dirs,
     readr::read_lines(avail, num_threads=1),
     format = "qs"),
-  tar_target(n_sub, c(10, 20, 30)),
-  tar_target(n_study, c(10, 20, 30)),
-  tar_target(iter, seq_len(5)),
+  tar_target(n_sub, c(10)),
+  tar_target(n_study, c(10, 20)),
+  tar_target(iter, seq_len(1)),
   tar_target(cope5_index, seq_len(900)),
   tar_target(
     cope5,
@@ -45,8 +45,8 @@ list(
     iteration = "group",
     format = "fst_tbl"),
   tar_target(
-    z_img,
-    do_z(cope_files2),
+    t_img,
+    do_t(cope_files2),
     pattern = map(cope_files2),
     format = "fst_tbl"),
   tar_target(
@@ -54,17 +54,17 @@ list(
     fs::path("python", "ale.py"),
     format = "file"),
   tar_target(
-    z_img2,
-    z_img |>
+    t_img2,
+    t_img |>
       dplyr::group_by(iter, n_study, n_sub) |>
       tar_group(),
     iteration = "group",
     format = "fst_tbl"),
   tar_target(
     ale,
-    do_ale_py(z_img2, python_source = here::here(ale_py_script), condaenv = "meta"),
+    do_ale_py(t_img2, python_source = here::here(ale_py_script), condaenv = "meta"),
     cue = tar_cue(depend = FALSE),
-    pattern = map(z_img2),
+    pattern = map(t_img2),
     format = "fst_tbl",
     resources = tar_resources(
       future = tar_resources_future(

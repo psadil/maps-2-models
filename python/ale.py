@@ -5,7 +5,7 @@ import pandas as pd
 
 import nimare
 from nimare.meta.cbma import ALE
-from nimare.transforms import ImagesToCoordinates
+from nimare.transforms import ImagesToCoordinates,ImageTransformer
 
 def as_dict(d: tuple) -> dict:
   ds = {
@@ -13,7 +13,8 @@ def as_dict(d: tuple) -> dict:
       'contrasts': {
         "1": {
           "images": {
-            'z': d.z
+            't': d.t,
+            'varcope': d.varcope
             },
             "metadata": {
               "sample_sizes": [d.n_sub]
@@ -43,18 +44,18 @@ def do_ale(
           
     dset = nimare.dataset.Dataset(x, mask=mask)
     dset.update_path(new_path=in_dir)
-    coord_replace = ImagesToCoordinates(
+    dset = ImageTransformer(target="z").transform(dset)
+    dset = ImagesToCoordinates(
       merge_strategy="replace", 
       z_threshold=z_threshold, 
       remove_subpeaks=remove_subpeaks, 
       two_sided=two_sided,
-      min_distance=min_distance)
-    dset = coord_replace.transform(dset)   
+      min_distance=min_distance).transform(dset)
     dset.save(os.path.join(out_dir, f"{prefix}_dset.pklz"))
     ale = ALE()
 
     cbma = ale.fit(dset)
     cbma.save_maps(output_dir=out_dir, prefix=prefix)
 
-    return os.path.join(out_dir, f"{prefix}_z.nii.gz")
+    return os.path.join(out_dir, f"{prefix}_t.nii.gz")
 

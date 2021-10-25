@@ -40,6 +40,56 @@ do_z <- function(cope_files){
     dplyr::mutate(z = z_file)
 }
 
+do_t <- function(cope_files){
+  stopifnot(
+    {
+      dplyr::n_distinct(cope_files$n_sub) == 1
+      dplyr::n_distinct(cope_files$iter) == 1
+      dplyr::n_distinct(cope_files$n_study) == 1
+      dplyr::n_distinct(cope_files$study) == 1
+    }
+  )
+  
+  iter <- unique(cope_files$iter)
+  n_sub <- unique(cope_files$n_sub)
+  n_study <- unique(cope_files$n_study)
+  study <- unique(cope_files$study)
+  
+  t_vcope <- calc_t_vcope(cope_files$copes)
+  varcope_file <- neurobase::writenii(
+    t_vcope$varcope, 
+    here::here(
+      "data-raw", "niis", glue::glue("nstudy-{n_study}_nsub-{n_sub}_study-{study}_iter-{iter}_varcope.nii.gz"))) %>%
+    fs::path_rel(here::here())
+  t_file <- neurobase::writenii(
+    t_vcope$t, 
+    here::here(
+      "data-raw", "niis", glue::glue("nstudy-{n_study}_nsub-{n_sub}_study-{study}_iter-{iter}_t.nii.gz"))) %>%
+    fs::path_rel(here::here())
+  
+  cope_files %>%
+    dplyr::distinct(n_sub, iter, study, n_study) %>%
+    dplyr::mutate(
+      t = t_file,
+      varcope = varcope_file)
+}
+
+calc_t_vcope <- function(cope_files){
+  copes <- purrr::map(cope_files, ~neurobase::readnii(.x)@.Data) %>%
+    simplify2array()
+  stopifnot(length(dim(copes)) == 4)
+  n <- dim(copes)[4]
+  means <- apply(copes, 1:3, mean)
+  sds <- apply(copes, 1:3, sd)
+  t_stat <- sqrt(n) * means / sds
+  t_stat[is.na(t_stat)] <- 0
+  sds[is.na(sds)] <- 0
+  t_img <- neurobase::niftiarr(neurobase::readnii(cope_files[[1]]), t_stat)
+  varcope_img <- neurobase::niftiarr(neurobase::readnii(cope_files[[1]]), sds^2)
+  list("t" = t_img, "varcope" = varcope_img)
+}
+
+
 calc_z <- function(cope_files){
   copes <- purrr::map(cope_files, ~neurobase::readnii(.x)@.Data) %>%
     simplify2array()
@@ -55,21 +105,21 @@ calc_z <- function(cope_files){
 }
 
 do_ale_py <- function(
-  z_img, 
+  t_img, 
   condaenv = "meta", 
   python_source = here::here("python", "ale.py"),
-  mask_file = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain_mask.nii.gz")){
+  mask_file = fslr::mni_fname(mm = "2", brain = TRUE, mask = TRUE)){
   
   stopifnot(
     {
-      dplyr::n_distinct(z_img$n_sub) == 1
-      dplyr::n_distinct(z_img$iter) == 1
-      dplyr::n_distinct(z_img$n_study) == 1
-      dplyr::n_distinct(z_img$study) == unique(z_img$n_study)
+      dplyr::n_distinct(t_img$n_sub) == 1
+      dplyr::n_distinct(t_img$iter) == 1
+      dplyr::n_distinct(t_img$n_study) == 1
+      dplyr::n_distinct(t_img$study) == unique(t_img$n_study)
     }
   )
   
-  d <- z_img %>%
+  d <- t_img %>%
     dplyr::mutate(exp = glue::glue("study-{study}_nsub-{n_sub}_nstudy-{n_study}_iter-{iter}")) 
   
   reticulate::use_condaenv(condaenv = condaenv)
@@ -79,13 +129,13 @@ do_ale_py <- function(
     dplyr::distinct(n_sub, n_study, iter) %>%
     dplyr::rowwise() %>%
     dplyr::mutate(
-      z_ale = do_ale(
+      t_ale = do_ale(
         d, 
         here::here(), 
         here::here("data-raw", "niis"), 
         glue::glue("nsub-{n_sub}_nstudy-{n_study}_iter-{iter}"), 
         mask_file),
-      z_ale = fs::path_rel(z_ale, start = here::here())) %>%
+      t_ale = fs::path_rel(t_ale, start = here::here())) %>%
     dplyr::ungroup()
 }
 
@@ -104,7 +154,7 @@ do_ibma_py <- function(
   )
   
   dset <- ale |>
-    dplyr::mutate(dset_fname = stringr::str_replace(z_ale, "_z.nii.gz", "_dset.pklz") )
+    dplyr::mutate(dset_fname = stringr::str_replace(t_ale, "_t.nii.gz", "_dset.pklz") )
   
   reticulate::use_condaenv(condaenv = condaenv)
   reticulate::source_python(file = python_source)
@@ -112,12 +162,12 @@ do_ibma_py <- function(
   dset %>%
     dplyr::rowwise() %>%
     dplyr::mutate(
-      z_ibma = do_imba(
+      t_ibma = do_imba(
         dset_fname,
         here::here("data-raw", "niis"), 
         here::here("data-raw", "niis"),
         glue::glue("nsub-{n_sub}_nstudy-{n_study}_iter-{iter}_ma-ib")),
-      z_ibma = fs::path_rel(z_ibma, start = here::here())) %>%
+      t_ibma = fs::path_rel(t_ibma, start = here::here())) %>%
     dplyr::ungroup()
 }
 

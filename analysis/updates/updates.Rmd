@@ -1,5 +1,5 @@
 ---
-title: "October 12"
+title: "October 26"
 output: 
   bookdown::pdf_document2:
     number_sections: false
@@ -13,52 +13,18 @@ library(targets)
 library(effectsize)
 library(patchwork)
 
-calc_dice_whole <- function(d, value, lower = 0.0001){
-  d |> 
-    mutate(
-      abs_v = abs({{value}}),
-      abs_pop = abs(pop)) |>
-    dplyr::group_by(n_sub, iter, n_study) |> 
-    dplyr::summarise(
-      dice = 2*sum((abs_v > lower) * (abs_pop > lower)) / (sum(abs_v > lower) + sum(abs_pop > lower)),
-      .groups = "drop")
-}
-
-calc_tpr_whole <- function(d, value, lower = 0.0001){
-  d |> 
-    mutate(
-      abs_v = abs({{value}}),
-      abs_pop = abs(pop)) |>
-    dplyr::group_by(n_sub, iter, n_study) |> 
-    dplyr::summarise(
-      dice = sum((abs_v > lower) * (abs_pop > lower)) / sum(abs_pop > lower),
-      .groups = "drop")
-}
-
-calc_fpr_whole <- function(d, value, lower = 0.1){
-  d |> 
-    mutate(
-      abs_v = abs({{value}}),
-      abs_pop = abs(pop)) |>
-    dplyr::group_by(n_sub, iter, n_study) |> 
-    dplyr::summarise(
-      dice = sum((abs_v > lower) * (abs_pop < lower)) / sum(abs_pop < lower),
-      .groups = "drop")
-}
-
-
+source(here::here("R", "updates.R"))
 Sys.setenv(TAR_PROJECT = "ale")
+tar_config_set(store = here::here("_ale"))
 ```
 
 
 ```{r, data}
 
-mask_file <- "/home/psadil/fsl/data/standard/MNI152_T1_2mm_brain_mask.nii.gz"
-
 tar_load(comparison)
 tar_load(z_pop)
 
-mask_nii <- neurobase::readnii(mask_file) 
+mask_nii <- fslr::mni_img(mm="2", mask=TRUE, brain=TRUE) 
 
 pop <- neurobase::img_indices(z_pop, mask=mask_nii, add_values = TRUE) |>
   as_tibble() |>
@@ -74,11 +40,13 @@ tmp <- comparison  |>
   semi_join(seg, by = c("x","y","z")) 
 
 # ibma
-ibma <- neurobase::niftiarr(mask_nii, neurobase::readnii("data-raw/niis/nsub-10_nstudy-10_iter-1_ma-ib_z.nii.gz")) |>
+ibma <- neurobase::niftiarr(mask_nii, neurobase::readnii(here::here("data-raw","niis","nsub-10_nstudy-10_iter-1_ma-ib_z.nii.gz"))) |>
   neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
   as_tibble() |>
   semi_join(seg, by = c("x", "y", "z")) |>
-  mutate(value = z_to_d(value, n=10, paired = TRUE)[,1])
+  mutate(
+    value = z_to_d(value, n=10, paired = TRUE)[,1],
+    value = value * gamma((10-1)/2)/(sqrt((10-1)/2)*gamma((10-2)/2)))
 
 ```
 
@@ -87,15 +55,12 @@ ibma <- neurobase::niftiarr(mask_nii, neurobase::readnii("data-raw/niis/nsub-10_
 
 ### Oracle Grant
 
-Last Friday, I submitted the grant to Oracle. I’m told that the process has gotten a bit slower since you submitted last year, but to expect a decision within a few weeks. 
+You saw that the grant was funded. I think this will be a fun project, A couple of closely related reports came out recently. 
 
 ### Meta Analysis
 
 #### Coordinate-Based
 
-Last week, I mentioned that I was running in to two issues. The first issue was with regards to scaling; I was concerned that the “gold-standard” stat maps I was looking at were substantially larger than the MNI brain mask. This turned out to be a non-issue; although I thought that the parameter estimate files were skull-stripped, they were instead only masked with the MNI skull. The “gold-standard” images appeared larger than the MNI brain mask because they contained more than brain tissue. 
-
-The second issue was with regards to translating the z-scores from the image-based meta-analysis into a measure of effect size. We looked at a few examples where I’d plotted the cluster-wise average z-score from meta-analyses against the cluster-wise average Cohen’s d from the gold standard. But I had thresholded the plots based on z-scores, and so it was difficult to see patterns. This week. I've plotted the voxel-wise z-statistics against the voxel-size Cohen's d, again grouped by number of participants per study and number of studies per analysis (Figure \@ref(fig:zbyd)). Only voxels within a gray matter mask are plotted.
 
 ```{r, zbyd, fig.cap="Relationship between ALE z-statistic and gold standard Cohen's d. Points correspond to voxels within a gray matter mask. Only voxels with positive Cohen's d are shown. Solid line has unit slope and intercept 0.", fig.height=4, fig.width=4}
 tmp |>
@@ -206,4 +171,3 @@ ibma |>
 
 ## Other
 
-Heejung asked about processing the spacetop data. I don't think this was directed at me, but is there something I could follow up on?
