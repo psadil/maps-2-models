@@ -389,7 +389,7 @@ tidy_ibma <- function(ibma){
     dplyr::filter(value == 2) |>
     dplyr::select(-value)
   
-  neurobase::niftiarr(mask_nii, neurobase::readnii(z_ibma)) |>
+  neurobase::niftiarr(mask_nii, neurobase::readnii(ibma$z_ibma)) |>
     neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
     tibble::as_tibble() |>
     dplyr::semi_join(seg, by = c("x", "y", "z")) 
