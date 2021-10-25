@@ -43,8 +43,13 @@ def do_ale(
       x.update(as_dict(row))
           
     dset = nimare.dataset.Dataset(x, mask=mask)
-    dset.update_path(new_path=in_dir)
+
+    # out_dir followed by in_dir ensures that the newly created z images
+    # are saved in the out_dir
+    dset.update_path(new_path=out_dir)
     dset = ImageTransformer(target="z").transform(dset)
+    dset.update_path(new_path=in_dir)
+    
     dset = ImagesToCoordinates(
       merge_strategy="replace", 
       z_threshold=z_threshold, 
