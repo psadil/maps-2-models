@@ -57,5 +57,5 @@ def do_ale(
     cbma = ale.fit(dset)
     cbma.save_maps(output_dir=out_dir, prefix=prefix)
 
-    return os.path.join(out_dir, f"{prefix}_t.nii.gz")
+    return os.path.join(out_dir, f"{prefix}_z.nii.gz")
 

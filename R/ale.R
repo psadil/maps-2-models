@@ -129,13 +129,13 @@ do_ale_py <- function(
     dplyr::distinct(n_sub, n_study, iter) %>%
     dplyr::rowwise() %>%
     dplyr::mutate(
-      t_ale = do_ale(
+      z_ale = do_ale(
         d, 
         here::here(), 
         here::here("data-raw", "niis"), 
         glue::glue("nsub-{n_sub}_nstudy-{n_study}_iter-{iter}"), 
         mask_file),
-      t_ale = fs::path_rel(t_ale, start = here::here())) %>%
+      z_ale = fs::path_rel(z_ale, start = here::here())) %>%
     dplyr::ungroup()
 }
 
@@ -143,7 +143,7 @@ do_ibma_py <- function(
   ale, 
   condaenv = "meta", 
   python_source = here::here("python", "ibma.py"),
-  mask_file = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain_mask.nii.gz")){
+  mask_file = fslr::mni_fname(mm = "2", brain = TRUE, mask = TRUE)){
   
   stopifnot(
     {
@@ -154,7 +154,7 @@ do_ibma_py <- function(
   )
   
   dset <- ale |>
-    dplyr::mutate(dset_fname = stringr::str_replace(t_ale, "_t.nii.gz", "_dset.pklz") )
+    dplyr::mutate(dset_fname = stringr::str_replace(z_ale, "_z.nii.gz", "_dset.pklz") )
   
   reticulate::use_condaenv(condaenv = condaenv)
   reticulate::source_python(file = python_source)
@@ -162,12 +162,12 @@ do_ibma_py <- function(
   dset %>%
     dplyr::rowwise() %>%
     dplyr::mutate(
-      t_ibma = do_imba(
+      z_ibma = do_imba(
         dset_fname,
         here::here("data-raw", "niis"), 
         here::here("data-raw", "niis"),
         glue::glue("nsub-{n_sub}_nstudy-{n_study}_iter-{iter}_ma-ib")),
-      t_ibma = fs::path_rel(t_ibma, start = here::here())) %>%
+      z_ibma = fs::path_rel(z_ibma, start = here::here())) %>%
     dplyr::ungroup()
 }
 
@@ -348,21 +348,21 @@ tidy_ale <- function(
   
   mask_nii <- neurobase::readnii(mask)
   
-  p <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$t_ale, "_t", "_p"))) |>
+  p <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$z_ale, "_z", "_p"))) |>
     neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
     tibble::as_tibble() |>
     dplyr::rename(p = value)
   
-  st <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$t_ale, "_t", "_stat"))) |>
+  st <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$z_ale, "_z", "_stat"))) |>
     neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
     tibble::as_tibble() |>
     dplyr::rename(stat = value)
 
-  z <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$t_ale, "_t", "_z"))) |>
+  z <- neurobase::niftiarr(mask_nii, neurobase::readnii(ale$z_ale)) |>
     neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
     tibble::as_tibble() |>
-    dplyr::rename(Z = value) |>
-    tidyr::crossing(dplyr::select(ale, -t_ale)) |>
+    dplyr::rename(t = value) |>
+    tidyr::crossing(dplyr::select(ale, -z_ale)) |>
     dplyr::left_join(p, by = c("x","y","z")) |>
     dplyr::left_join(st, by = c("x","y","z"))
   z
