@@ -40,13 +40,14 @@ tmp <- comparison  |>
   semi_join(seg, by = c("x","y","z")) 
 
 # ibma
-ibma <- neurobase::niftiarr(mask_nii, neurobase::readnii(here::here("data-raw","niis","nsub-10_nstudy-10_iter-1_ma-ib_z.nii.gz"))) |>
+ibma <- neurobase::niftiarr(
+  mask_nii,
+  neurobase::readnii(here::here("data-raw","niis","nsub-10_nstudy-10_iter-1_ma-ib_z.nii.gz"))) |>
   neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
   as_tibble() |>
   semi_join(seg, by = c("x", "y", "z")) |>
   mutate(
-    value = z_to_d(value, n=10, paired = TRUE)[,1],
-    value = value * gamma((10-1)/2)/(sqrt((10-1)/2)*gamma((10-2)/2)))
+    value = z_to_d(value, n=10)[,1])
 
 ```
 
