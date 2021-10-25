@@ -338,7 +338,7 @@ apply_reg_cope <- function(
 
 tidy_ale <- function(
   ale, 
-  mask = fs::path(Sys.getenv("FSLDIR"), "data", "standard","MNI152_T1_2mm_brain_mask.nii.gz")){
+  mask = fslr::mni_fname("2", brain=TRUE, mask = TRUE)){
   
   stopifnot(
     {
@@ -348,21 +348,21 @@ tidy_ale <- function(
   
   mask_nii <- neurobase::readnii(mask)
   
-  p <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$z_ale, "_z", "_p"))) |>
+  p <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$t_ale, "_t", "_p"))) |>
     neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
     tibble::as_tibble() |>
     dplyr::rename(p = value)
   
-  st <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$z_ale, "_z", "_stat"))) |>
+  st <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$t_ale, "_t", "_stat"))) |>
     neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
     tibble::as_tibble() |>
     dplyr::rename(stat = value)
 
-  z <- neurobase::niftiarr(mask_nii, neurobase::readnii(ale$z_ale)) |>
+  z <- neurobase::niftiarr(mask_nii, neurobase::readnii(stringr::str_replace(ale$t_ale, "_t", "_z"))) |>
     neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
     tibble::as_tibble() |>
     dplyr::rename(Z = value) |>
-    tidyr::crossing(dplyr::select(ale, -z_ale)) |>
+    tidyr::crossing(dplyr::select(ale, -t_ale)) |>
     dplyr::left_join(p, by = c("x","y","z")) |>
     dplyr::left_join(st, by = c("x","y","z"))
   z
