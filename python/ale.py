@@ -35,8 +35,7 @@ def do_ale(
   z_threshold: float = 2.3,
   remove_subpeaks: bool = True,
   two_sided: bool = False,
-  min_distance: float = 8
-  ) -> Union[str, bytes, os.PathLike]:
+  min_distance: float = 0) -> Union[str, bytes, os.PathLike]:
 
     x = {}
     for row in d.itertuples():

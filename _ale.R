@@ -9,6 +9,8 @@ source(here::here("R", "ale.R"))
 library(future)
 # library(future.callr)
 # plan(callr)
+library(fst)
+library(qs)
 library(future.batchtools)
 plan(batchtools_sge, template = "tools/sge.tmpl")
 

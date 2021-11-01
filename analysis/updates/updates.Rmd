@@ -7,7 +7,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = TRUE, dev = "ragg_png", dpi=200, fig.width = 5)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = TRUE, dev = "ragg_png", dpi=200)
 library(tidyverse)
 library(targets)
 library(effectsize)
@@ -16,20 +16,22 @@ library(patchwork)
 source(here::here("R", "updates.R"))
 Sys.setenv(TAR_PROJECT = "ale")
 tar_config_set(store = here::here("_ale"))
-```
 
+J <- function(N) gamma((N-1)/2) / (sqrt((N-1)/2) * gamma((N-2)/2))
+```
 
 ```{r, data}
 
 tar_load(comparison)
 tar_load(z_pop)
+tar_load(ibma_summary)
 
 mask_nii <- fslr::mni_img(mm="2", mask=TRUE, brain=TRUE) 
 
 pop <- neurobase::img_indices(z_pop, mask=mask_nii, add_values = TRUE) |>
   as_tibble() |>
   rename(pop = value) |>
-  mutate(pop = effectsize::z_to_d(pop, n = 900)[,1])
+  mutate(pop = 2 * pop / sqrt(900))
 
 seg <- neurobase::img_indices(MNITemplate::readMNISeg(res="2mm"), add_values=TRUE) |>
   as_tibble() |>
@@ -37,31 +39,28 @@ seg <- neurobase::img_indices(MNITemplate::readMNISeg(res="2mm"), add_values=TRU
   select(-value)
 
 tmp <- comparison  |>
-  semi_join(seg, by = c("x","y","z")) 
+  semi_join(seg, by = c("x","y","z")) |>
+  rename(Z=t)
 
 # ibma
-ibma <- neurobase::niftiarr(
-  mask_nii,
-  neurobase::readnii(here::here("data-raw","niis","nsub-10_nstudy-10_iter-1_ma-ib_z.nii.gz"))) |>
-  neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
-  as_tibble() |>
-  semi_join(seg, by = c("x", "y", "z")) |>
+ibma <- ibma_summary |>
   mutate(
-    value = z_to_d(value, n=10)[,1])
+    N = n_study * n_sub,
+    value = value / sqrt(N) * 2)
 
 ```
-
 
 ## UK Biobank
 
 ### Oracle Grant
 
-You saw that the grant was funded. I think this will be a fun project, A couple of closely related reports came out recently. 
+You saw that the grant was funded. I think this will be a fun project, A couple of closely related reports came out recently (Dadi et al. 2021 https://doi.org/10.1093/gigascience/giab071; Dockès et al. 2021 https://doi.org/10.1093/gigascience/giab055. 
 
-### Meta Analysis
+### Meta Analysis / Effect Size
+
+I'm hoping to talk through a potential way to refocus these simulations. When we last met, we spent a while discussing how to report an effect size in for the coordinate-based meta-analysis. Since then, my main goal was to revisit the literature to see if there were strategies for a straight calculation of effect size from a coordinate-based meta-analysis. While I've seen a few techniques for mixing coordinate- and image-based meta-analyses, partly to estimate effect sizes, I'm still not aware of a method for extracting effect sizes from ALE alone using a published method. I'm a bit wary of this project being too much about the different ways of performing ALE, crossed with the different ways of combining coordinate- and image-based meta-analyses. I was hoping to talk through a few approaches for linking these meta-analysis studies back to the point about larger datasets producing smaller but more reliable effects. 
 
 #### Coordinate-Based
-
 
 ```{r, zbyd, fig.cap="Relationship between ALE z-statistic and gold standard Cohen's d. Points correspond to voxels within a gray matter mask. Only voxels with positive Cohen's d are shown. Solid line has unit slope and intercept 0.", fig.height=4, fig.width=4}
 tmp |>
@@ -79,11 +78,8 @@ tmp |>
   ylab("z-stat (Meta)")
 ```
 
-There is some linear or nearly linear relationship between these values within groups of voxels, a relationship that depends on both the number of participants per study and the number of studies per analysis. However, there groups of voxels within individual studies show "streaks". Those streaks often comprise voxels within a cluster. I'm still not seeing a way that ALE can recover the voxel-wise effect sizes. But now I'm thinking that there must be a way to recover the "effect size" of the clusters themselves by incorporating the spatial extent of each cluster. This seems like something that would have been done before, although I'm not aware of a common method for doing so.
 
-The spatial overlap of active voxels shows a simpler picture (Figure \@ref(fig:cbmadice)); increasing the number of observations within a meta-analysis increases the dice coefficient. Note that these coefficients are much smaller than we looked at last week. Last week, we were looking at coefficients calculated from voxels restricted to clusters from the meta-analysis, whereas these these coefficients were calculated across the all of gray matter. Also, see that increasing the number of participants and studies also increases the false positive rate. 
-
-```{r, cbmadice, fig.cap="Spatial Overlap within Gray Matter. In both meta-analyses and gold standard, voxels were thresholded at p < 0.01. Points correspond to separate meta-analysis, five per combination of study and participant counts.", fig.width=3, fig.width=7}
+```{r, cbmadice, fig.cap="Spatial Overlap within Gray Matter. In both meta-analyses and gold standard, voxels were thresholded at p < 0.01. Points correspond to separate meta-analysis, five per combination of study and participant counts.", fig.width=3, fig.width=7.5}
 
 thresh <- 0.99
 
@@ -122,11 +118,13 @@ a | (b + c) + plot_layout(nrow=2)
 ```
 
 
+![Coordinate-based vs. Gold Standard. Gold standard z-map shown in blue, thresholded at z>2. Meta-analysis shown in red, without thresholding (30 studies each with 30 participant). By design, ALE finds the peaks, but note that this does not necessarily mean it finds the full extent of a robust cluster (e.g., ventral visual stream). The meta-analysis is masked with a brain mask, but not the gold standard. ](screenshot.png)
+
 #### Image-Based
 
-The image-based meta analysis has a simple way of calculating effect sizes. However, I have only used a meta-analysis that is a fixed effects analysis, whereas the gold-standard was set up as a mixed effects. I believe that this is causing a mismatch between the effect sizes. For an example, see Figure \@ref(fig:ibma).
+Cohen's d estimated for gold standard as $\hat{d} = 2*t*\sqrt{900}$, where $t$ is the $t$-statistic calculated from 900 participants. To estimate the beta coefficients for the meta-analysis, an approach from DerSimonian and Laird (1986) that relies on a weighted least squares, which produces a random effects beta coefficient that was converted to an estimate of Cohen's d as in the gold standard ($2*t*\sqrt{nstudy*nsub}$). The meta-analyses are almost accurate, although it looks like there is a slight bias based on the extreme effect sizes (Figure \@ref(fig:ibma)). I'm still looking into the details of this method to understand if a bias is expected with these sample sizes.
 
-```{r, ibma, fig.cap="Example Comparison Between Image-Based Meta-Analysis and Population Gold Standard. The population-based effects were calculated with a mixed effects analysis, whereas the meta-analysis was done with a fixed effects (Stouffer's weighted method). Meta-analysis is of 10 studies, each with 10 participants.", fig.height=3}
+```{r, ibma, fig.cap="Example Comparison Between Image-Based Meta-Analysis and Population Gold Standard. Each panel reflects a single simulated meta-analysis, with points indicating gray matter voxels.", fig.width=7, fig.height=6}
 
 # p <- tmp |>
 #   filter(Z > 0) |>
@@ -161,14 +159,11 @@ The image-based meta analysis has a simple way of calculating effect sizes. Howe
 ibma |>
   left_join(pop, by = c("x", "y", "z")) |>
   ggplot(aes(x = pop, y = value)) +
+  facet_grid(n_sub ~ n_study, labeller = label_both) +
   geom_point(alpha = .01) +
   geom_abline(slope=1, intercept = 0) +
   coord_fixed() +
   xlab("Cohen's d (Population; MFX)") +
-  ylab("Cohen's d (IB Meta; FFX)")
+  ylab("Cohen's d (IB Meta; MFX)")
 
 ```
-
-
-## Other
-
