@@ -1,5 +1,5 @@
 ---
-title: "October 26"
+title: "November 11"
 output: 
   bookdown::pdf_document2:
     number_sections: false
@@ -48,122 +48,310 @@ ibma <- ibma_summary |>
     N = n_study * n_sub,
     value = value / sqrt(N) * 2)
 
+tar_load(t_img)
+
+mask_nii <- fslr::mni_img(mm="2", mask=TRUE, brain=TRUE) 
+
+
+out <- t_img |>
+  mutate(
+    d = map(
+      t, 
+      ~neurobase::niftiarr(mask_nii, neurobase::readnii( here::here(.x))) |>
+        neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
+        tibble::as_tibble() |>
+        dplyr::semi_join(seg, by = c("x", "y", "z"))),
+    vc = map(
+      varcope, 
+      ~neurobase::niftiarr(mask_nii, neurobase::readnii( here::here(.x))) |>
+        neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
+        tibble::as_tibble() |>
+        rename(vc=value) |>
+        dplyr::semi_join(seg, by = c("x", "y", "z"))),
+    d = map2(d, vc, left_join, by=c("x","y","z"))) |>
+  select(-t, -varcope, -vc) |>
+  unnest(d) |>
+  left_join(pop, by = c("x", "y", "z"))
+
+
 ```
+```{r, key}
+key <- readr::read_csv(
+  here::here("data-raw/Data_Dictionary_Showcase.csv"),
+  col_select = c("FieldID", "Field", "ValueType", "Units", "Category"),
+  col_types = cols(
+    FieldID = col_integer())) |>
+  filter(
+    (Category %in% c(112, 119, 106, 107, 111, 109)) | (FieldID %in% c(20016, 25006)) | str_detect(Field, "Volume of grey"),
+    !str_detect(Field, "NIFTI"),
+    !str_detect(Field, "eprime|Eprime"),
+    !str_detect(Field, "position"),
+    !str_detect(Field, "correlation"),
+    !str_detect(Field, "BOLD effect"),
+    !str_detect(Field, "head motion"),
+    !str_detect(Field, "percentile"),
+    !str_detect(Field, "Discrepancy"),
+    !str_detect(Field, "Amount of warping"),
+    !str_detect(Field, "scaling from T1 head"),
+    !str_detect(Field, "T2star"),
+    !str_detect(Field, "FLAIR"),
+    # !str_detect(Field, "Volume"),
+    !str_detect(Field, "activation"),
+    !str_detect(Field, "omponent amplitudes"),
+    !str_detect(Field, "Intensity"),
+    !str_detect(Field, "Inverted"),
+    !str_detect(Field, "Median"),
+    !str_detect(Field, "T1"),
+    !str_detect(Field, "dMRI"),
+    !str_detect(Field, "Echo"),
+    !str_detect(Field, "Standard deviation"),
+    !str_detect(Field, "Increased"),
+    !str_detect(Field, "DICOM"),
+    !str_detect(Field, "normalised"))
+
+```
+
+
+## A2CPS
+
+### Admin
+
+Would it make sense for me to get REDCap access? In keeping track of participants, I've been one of the people who confirms which participants are moving through the pipeline, but there's often a step in which I need to bother someone else to check the CRF. I'm thinking that if I had access to view REDCap, this checking would be more efficient.
+
+Do you know how the reports are being generated on the a2cps.org? I'm wondering whether I should be using the new web portal as a location for summarizing QC reports.
+
+### Analyses
+
+At the last DIRC meeting, we spoke about moving forward with actual analyses. Do you have priorities on which ones are tackled first? 
 
 ## UK Biobank
 
 ### Oracle Grant
 
-You saw that the grant was funded. I think this will be a fun project, A couple of closely related reports came out recently (Dadi et al. 2021 https://doi.org/10.1093/gigascience/giab071; Dockès et al. 2021 https://doi.org/10.1093/gigascience/giab055. 
+Thanks for filling out the ordering forms last week. I'm set up with an account and can move forward. I'm working on transferring the Biobank MRI data to Oracle. You've shown me briefly before, but can you show again how you pull the data? Rather than moving it from the cluster, I'm thinking it may be easiest to download directly from the UK Biobank websites.
 
-### Meta Analysis / Effect Size
+## Meta Analysis / Effect Size
 
-I'm hoping to talk through a potential way to refocus these simulations. When we last met, we spent a while discussing how to report an effect size in for the coordinate-based meta-analysis. Since then, my main goal was to revisit the literature to see if there were strategies for a straight calculation of effect size from a coordinate-based meta-analysis. While I've seen a few techniques for mixing coordinate- and image-based meta-analyses, partly to estimate effect sizes, I'm still not aware of a method for extracting effect sizes from ALE alone using a published method. I'm a bit wary of this project being too much about the different ways of performing ALE, crossed with the different ways of combining coordinate- and image-based meta-analyses. I was hoping to talk through a few approaches for linking these meta-analysis studies back to the point about larger datasets producing smaller but more reliable effects. 
+In general, we've seen that the correlations between the effect sizes in the gold standard and the image-based meta-analyses and the gold standard are high (e.g., Figure \@ref(fig:overall)).
 
-#### Coordinate-Based
-
-```{r, zbyd, fig.cap="Relationship between ALE z-statistic and gold standard Cohen's d. Points correspond to voxels within a gray matter mask. Only voxels with positive Cohen's d are shown. Solid line has unit slope and intercept 0.", fig.height=4, fig.width=4}
-tmp |>
-  filter(Z > 0) |>
-  group_by(n_sub, n_study, x, y, z) |>
-  summarise(Z = mean(Z), .groups = "drop") |>
-  left_join(pop, by = c("x","y","z")) |>
-  filter(pop > 0) |>
-  ggplot(aes(x = pop, y = Z)) +
-  facet_grid(n_sub ~ n_study, labeller = label_both) +
-  geom_abline(slope=1, intercept = 0) +
-  geom_point(alpha = .01) +
-  # coord_fixed() +
-  xlab("Cohen's d (Population)") +
-  ylab("z-stat (Meta)")
-```
-
-
-```{r, cbmadice, fig.cap="Spatial Overlap within Gray Matter. In both meta-analyses and gold standard, voxels were thresholded at p < 0.01. Points correspond to separate meta-analysis, five per combination of study and participant counts.", fig.width=3, fig.width=7.5}
-
-thresh <- 0.99
-
-a <- tmp |>
-  left_join(pop |> mutate(pop = pop*sqrt(900)), by = c("x","y","z")) |>
-  calc_dice_whole(Z, lower = qnorm(thresh)) |>
-  ggplot(aes(x=n_study, y=dice)) +
-  facet_wrap(~n_sub, labeller = label_both) +
-  geom_point(alpha = 0.5) +
-  scale_y_continuous(
-    name = "Dice Coefficient",
-    limits = c(0,0.5))
-
-b <- tmp |>
-  left_join(pop |> mutate(pop = pop*sqrt(900)), by = c("x","y","z")) |>
-  calc_tpr_whole(Z, lower = qnorm(thresh)) |>
-  ggplot(aes(x=n_study, y=dice)) +
-  facet_wrap(~n_sub, labeller = label_both) +
-  geom_point(alpha = 0.5) +
-  scale_y_continuous(
-    name = "True Positive Rate",
-    limits = c(0, 0.25))
-
-c <- tmp |>
-  left_join(pop |> mutate(pop = pop*sqrt(900)), by = c("x","y","z")) |>
-  calc_fpr_whole(Z, lower = qnorm(thresh)) |>
-  ggplot(aes(x=n_study, y=dice)) +
-  facet_wrap(~n_sub, labeller = label_both) +
-  geom_point(alpha = 0.5) +
-  scale_y_continuous(
-    name = "False Positive Rate",
-    limits = c(0,0.25))
-
-a | (b + c) + plot_layout(nrow=2)
-
-```
-
-
-![Coordinate-based vs. Gold Standard. Gold standard z-map shown in blue, thresholded at z>2. Meta-analysis shown in red, without thresholding (30 studies each with 30 participant). By design, ALE finds the peaks, but note that this does not necessarily mean it finds the full extent of a robust cluster (e.g., ventral visual stream). The meta-analysis is masked with a brain mask, but not the gold standard. ](screenshot.png)
-
-#### Image-Based
-
-Cohen's d estimated for gold standard as $\hat{d} = 2*t*\sqrt{900}$, where $t$ is the $t$-statistic calculated from 900 participants. To estimate the beta coefficients for the meta-analysis, an approach from DerSimonian and Laird (1986) that relies on a weighted least squares, which produces a random effects beta coefficient that was converted to an estimate of Cohen's d as in the gold standard ($2*t*\sqrt{nstudy*nsub}$). The meta-analyses are almost accurate, although it looks like there is a slight bias based on the extreme effect sizes (Figure \@ref(fig:ibma)). I'm still looking into the details of this method to understand if a bias is expected with these sample sizes.
-
-```{r, ibma, fig.cap="Example Comparison Between Image-Based Meta-Analysis and Population Gold Standard. Each panel reflects a single simulated meta-analysis, with points indicating gray matter voxels.", fig.width=7, fig.height=6}
-
-# p <- tmp |>
-#   filter(Z > 0) |>
-#   group_by(n_sub, n_study, x, y, z) |>
-#   summarise(d = mean(d), .groups = "drop") |>
-#   left_join(pop, by = c("x","y","z")) |>
-#   filter(pop > 0) |>
-#   ggplot(aes(x = pop, y = d)) +
-#   facet_grid(n_sub ~ n_study, labeller = label_both) +
-#   geom_abline(slope=1, intercept = 0) +
-#   geom_point(alpha = .01) +
-#   # coord_fixed() +
-#   xlab("Cohen's d (Population)") +
-#   ylab("z-stat / sqrt(n) (Meta)")
-
-# ggsave("tmp3.png", p, device = ragg::agg_png)
-
-
-# p2 <- tmp |>
-#   filter(pop > 0) |>
-#   group_by(n_sub, n_study, x, y, z) |>
-#   summarise(Z = mean(Z), p = mean(p), stat=mean(stat), .groups = "drop") |>
-#   mutate(pop = pop / sqrt(n_study)) |>
-#   left_join(ibma, by = c("x", "y", "z")) |>
-#   ggplot(aes(x = pop, y = value)) +
-#   facet_grid(n_sub ~ n_study, labeller = label_both) +
-#   geom_point(alpha = .01) +
-#   coord_fixed() +
-#   xlab("Cohen's d (Population)") +
-# #   ylab("Cohen's d (IB Meta)")
+```{r, overall, fig.cap="Correlation (Spearman's) between effect sizes in image-based meta-analyses and gold-standard are high.", fig.width=6}
 
 ibma |>
   left_join(pop, by = c("x", "y", "z")) |>
-  ggplot(aes(x = pop, y = value)) +
-  facet_grid(n_sub ~ n_study, labeller = label_both) +
-  geom_point(alpha = .01) +
-  geom_abline(slope=1, intercept = 0) +
-  coord_fixed() +
-  xlab("Cohen's d (Population; MFX)") +
-  ylab("Cohen's d (IB Meta; MFX)")
+  na.omit() |>
+  mutate(`N sub` = factor(n_sub)) |>
+  group_by(`N sub`, iter, n_study) |>
+  summarise(r = cor(value, pop, method = "spearman"), .groups = "drop") |>
+  ggplot(aes(x=n_study, y=r, color=`N sub`, shape=`N sub`)) +
+  geom_point() +
+  geom_line() +
+  scale_color_viridis_d(option="inferno", end=0.8) +
+  scale_y_continuous(
+    name = "Correlation of Cohen's d",
+    limits = c(NA, 1)) +
+  xlab("N studies per analysis")
 
+```
+
+An idea is that there may be reliable signals within the multivariate patterns of activity, reliability that is obscured by thresholding within the individual studies. To start looking at this, I checked the correlation between the effect sizes within the individual studies that compose the meta-analysis and the gold standard (Figure \@ref(fig:study)). 
+
+```{r, study, fig.cap="Correlation (Spearman's) of Effect Sizes Between Individual Studies and Gold Standard. Each point represents an individual simulated study. Panels include gray matter voxels that were thresholded at two different levels, such that voxels were only included when their effect sizes in the gold standard exceeded the threshold."}
+
+out |>
+  crossing(threshold = c(0.01, 0.2)) |>
+  filter(abs(pop) > threshold) |>
+  group_by(n_sub, n_study, iter, study, threshold) |>
+  summarise(r = cor(value, pop, method = "spearman"), .groups = "drop") |>
+  ggplot(aes(x=factor(n_sub), y=r)) +
+  facet_wrap(~threshold, labeller = label_both) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter() +
+  scale_y_continuous(
+    limits = c(NA, 1),
+    name = "Correlation of Cohen's d") +
+  xlab("N Subject within Study")
+
+```
+
+We can dig deeper into these correlations by looking at how they vary based on the "true" effect size of the voxel (i.e., the effect size in the gold standard; Figure \@ref(fig:bysize)A). Note that the variability of effect sizes in the individual studies also varies as a function of the true effect size (Figure \@ref(fig:bysize)B).
+
+```{r, bysize, fig.cap="A) Correlation (Spearman's) of Effect Sizes Between Individual Studies and Gold Standard, by Effect Size of Gold Standard. N: Number of voxels within the correlation. Magnitude: emperical quintiles of the effect size of a voxel within the gold standard. B) Standard deviation of voxel-wise effect sizes within a study varies as a function of the true effect size.", fig.width=8}
+
+a <- out |>
+  # filter(abs(pop) > 0.01) |>
+  mutate(
+    # value = value / sqrt(n_sub) * 2 * J(n_sub),
+    magnitude = cut(abs(pop), breaks = 5)) |>
+  group_by(n_sub, n_study, iter, study, magnitude) |>
+  summarise(
+    r = cor(value, pop, method = "spearman"), 
+    N = n(),
+    .groups = "drop") |>
+  ggplot(aes(x = factor(n_sub), y=r, color = magnitude)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(
+    aes(size=N),
+    alpha = 0.25,
+    position = position_jitterdodge()) +
+  scale_y_continuous(
+    limits = c(NA, 1),
+    name = "Correlation of Cohen's d") +
+  xlab("N Subject within Study") +
+  theme_gray(base_size = 10)
+
+b <- out |>
+  filter(abs(pop) > 0) |>
+  mutate(
+    # value = value / sqrt(n_sub) * 2 * J(n_sub),
+    magnitude = cut(abs(pop), breaks = 5)) |>
+  group_by(n_sub, n_study, iter, study, magnitude) |>
+  summarise(
+    sd_study = sd(value), 
+    N = n(),
+    .groups = "drop") |>
+  ggplot(aes(x = factor(n_sub), y=sd_study, color = magnitude)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(
+    aes(size=N),
+    alpha = 0.25,
+    position = position_jitterdodge()) +
+  scale_y_continuous(
+    limits = c(0, NA),
+    name = "Standard Deviation of Cohen's d") +
+  xlab("N Subject within Study") +
+  theme_gray(base_size = 10)
+
+
+# c <- out |>
+#   filter(abs(pop) > 0) |>
+#   mutate(
+#     value = value / sqrt(n_sub-1) * 2 * J(n_sub),
+#     magnitude = cut(abs(pop), breaks = 10)) |>
+#   group_by(n_sub, n_study, iter, study, magnitude) |>
+#   summarise(
+#     slope = coef(lm(pop ~ value))[2], 
+#     N = n(),
+#     .groups = "drop") |>
+#   ggplot(aes(x = factor(n_sub), y=slope, color = magnitude)) +
+#   geom_boxplot(outlier.shape = NA) +
+#   # ylim(0, NA) +
+#   geom_jitter(
+#     aes(size=N),
+#     alpha = 0.25,
+#     position = position_jitterdodge())
+
+a + b + plot_layout(guides = "collect")  & theme(legend.position = "bottom", legend.box = "vertical")
+
+```
+
+
+Part of the idea would be that, if effect sizes tend to be small, then larger studies may help uncover many more distinct effects. In thinking about this, I extended one of the analyses in the Marek et al. paper, where they were looking at the correlation between cognitive abilities and regional gray matter thickness. Analogous to the Marek et al. analysis, I correlated these measures of regional volumes with participants' scores of fluid intelligence, with the correlations calculated using different subsamples (Figure \@ref(fig:volumes)A). One interpretation of the resulting distributions is that the gray matter volume of many individual regions are correlated with fluid intelligence. But that may be incomplete, given that adjusting for total gray matter volume pulls the distribution of correlations down toward 0 (Figure \@ref(fig:volumes)B).
+
+```{r, volumes0}
+
+d <- readr::read_tsv(
+  num_threads = 1,
+  # "data-raw/ukb47934.tab",
+  # "data-raw/ukb26883.tab",
+  here::here("data-raw/ukb37917.tab"),
+  n_max = 100000,
+  # "/dcl01/smart/data/UKBiobank/BehavioralData/ukb47934.tab",
+  # "/dcl01/smart/data/UKBiobank/BehavioralData/ukb37917.tab",
+  # "/dcl01/smart/data/UKBiobank/BehavioralData/ukb26883.tab",
+  col_select = c(
+    "f.eid",
+    tidyselect::matches(glue::glue("f.({paste(unique(key$FieldID), sep='|')}).[[:digit:]]+.[[:digit:]]+"))),  
+  col_types = readr::cols(
+    f.eid = readr::col_integer(),
+    .default = readr::col_number())) %>%
+  tidyr::pivot_longer(
+    cols = c(tidyselect::starts_with("f."), -"f.eid"),
+    names_to = c("FieldID", "instance", "array"),
+    names_pattern = "f.([[:digit:]]+).([[:digit:]]+).([[:digit:]]+)",
+    names_transform = list(FieldID = as.integer, instance=as.integer, array=as.integer)) %>%
+  na.omit() %>%
+  # filter(!(FieldID == 20016 & is.na(value))) |>
+  group_by(f.eid, FieldID) %>%
+  summarise(value = max(value), .groups = "drop") %>%
+  dplyr::semi_join(key, by = "FieldID") %>%
+  tidyr::pivot_wider(names_from = FieldID) |>
+  na.omit()
+
+# tmp <- d |> 
+#   select(`20016`, `25006`, `25782`) |> 
+#   mutate(across(.fns = ~scale(.x, scale=FALSE)))
+
+# f1 <- lm(`20016` ~ `25006` + `25782`, data=tmp) 
+# f2 <- lm(`20016` ~ `25006`, data=tmp) 
+# anova(f2, f1)
+
+experiment <- function(d, N){
+  d |>
+    slice_sample(n=N) |>
+    pivot_longer(cols=c(-f.eid, -`20016`)) |>
+    group_by(name) |>
+    summarise(rho = cor(value, `20016`, method = "spearman"))
+}
+
+
+experiment2 <- function(d, N){
+  d |>
+    slice_sample(n=N) |>
+    mutate(
+      across(
+        .cols = c(-f.eid, -`25006`), 
+        .fns = \(x) residuals(lm(x ~ 0 + `25006`)))) |>
+    select(-`25006`) |>
+    experiment(N = n())
+}
+
+
+r <- crossing(
+  N = c(10, 50, 100, 500, 1000, 5000),
+  iter = 1:100) |>
+  mutate(
+    fit = map(N, experiment, d=select(d, -`25006`))) |>
+  unnest(fit) 
+
+r2 <- crossing(
+  N = c(10, 50, 100, 500, 1000, 5000),
+  iter = 1:10) |>
+  mutate(
+    fit = map(N, experiment2, d=d)) |>
+  unnest(fit) 
+  
+
+```
+
+
+```{r, volumes, fig.cap="Correlation (Spearman's) Between Fluid Intelligence and Regional Gray Matter Volumes A) Without Adjusting for Total Gray Matter Volumne and B) With Adjusting. Each panel contains the correlation calculated from a random subsample of the Biobank of size N. Histograms show correlation after averaging across 100 repetitions of subsampling (no replacement within repetition, replacement across repetitions).", fig.width=8}
+
+lims <- c(-.3, 0, .3)
+a <- r |>
+  group_by(name, N) |>
+  summarise(rho = mean(rho), .groups = "drop") |>
+  ggplot(aes(x=rho)) +
+  geom_histogram(bins=30) +
+  facet_wrap(~N, labeller = label_both) +
+  scale_x_continuous(
+    name = "Correlation of Volume and Fluid Intelligence",
+    limits = c(-.45, .45),
+    breaks = lims,
+    labels = lims) +
+  theme_gray(base_size = 10)
+
+b <- r2 |>
+  group_by(name, N) |>
+  summarise(rho = mean(rho), .groups = "drop") |>
+  ggplot(aes(x=rho)) +
+  geom_histogram(bins=30) +
+  facet_wrap(~N, labeller = label_both) +
+  scale_x_continuous(
+    name = "Correlation of Volume and Fluid Intelligence",
+    limits = c(-.45, .45),
+    breaks = lims,
+    labels = lims) +
+  theme_gray(base_size = 10)
+
+a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
 ```
