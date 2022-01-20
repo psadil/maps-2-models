@@ -1,6 +1,6 @@
 main:
   script: _targets.R
-  store: _targets
+  store: /home/psadil/Documents/git/meta/_ale
 ale:
   script: _ale.R
   store: /home/psadil/Documents/git/meta/_ale

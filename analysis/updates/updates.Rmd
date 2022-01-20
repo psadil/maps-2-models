@@ -1,5 +1,5 @@
 ---
-title: "January 13"
+title: "January 20"
 output: 
   bookdown::pdf_document2:
     number_sections: false
@@ -15,27 +15,37 @@ source(here::here("R", "updates.R"))
 # Sys.setenv(TAR_PROJECT = "ale")
 # tar_config_set(store = here::here("_ale"))
 
+point_size <- 1
 
-plot_dist <- function(outqs, min_cluster=10){
+plot_dist <- function(outqs, min_cluster=10, ps=point_size){
   qs::qread(outqs) |>
     filter(!str_detect(label, "Brain-Stem")) |>
     filter(cluster_size > min_cluster) |>
     mutate(label = str_c(label, cluster_size, sep = " ")) |>
     group_by(label, n_sub, iter, cluster_size, sign) |>
     summarise(d = min(d), .groups = "drop") |>
-    WISEsummary(
-      dependentvars = "d",
-      betweenvars = c("n_sub", "label", "cluster_size","sign")) |>
-    ggplot(aes(x=n_sub, y=d_mean, group=interaction(cluster_size,sign))) + 
+    mutate(n_sub = factor(n_sub)) |>
+    # WISEsummary(
+    #   dependentvars = "d",
+    #   betweenvars = c("n_sub", "label", "cluster_size","sign")) |>
+    ggplot(aes(y=n_sub, x=d)) + 
     facet_wrap(
       ~label, 
       # scales = "free_y",
       labeller = ggplot2::label_wrap_gen(width = 20)) +
-    geom_line() +
-    scale_x_continuous(trans = "log10") +
-    geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
-    ylab("Avg. Distance From Reference (mm)") +
-    xlab("N Participants") +
+    ggridges::geom_density_ridges(
+      jittered_points = TRUE,
+      position = ggridges::position_points_jitter(width = 0.05, height = 0),
+      point_shape = '|', 
+      point_size = ps, 
+      point_alpha = 1, 
+      alpha = 0.7,
+      rel_min_height = 0.01) +
+    # geom_line() +
+    # scale_x_continuous(trans = "log10") +
+    # geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
+    xlab("Avg. Distance From Reference (mm)") +
+    ylab("N Participants") +
     theme_gray(base_size = 8) 
 }
 
@@ -70,135 +80,77 @@ plot_tmp <- function(outqs, min_cluster=10){
 ```
 
 
+## Biobank
+
+One participant appears to have corrupted task fMRI data 1435310 . That is, they have data files, but the files are all of size 0.
+
+(`/dcl01/smart/data/UKBiobank/task_fMRI/1435310_20249_2_0/fMRI/tfMRI.feat`)
+
 ## Spacetop
 
-I've moved some of the data to the JHPCE cluster. This has been done with Datalad, which includes tools for retrieving whichever parts of data are actively being processed (e.g., individual participants being run through fmriprep). However, there is some difficulty in accessing the Dartmouth cluster from the JHPCE, so it looks like it would be helpful if we could store an entire copy of the dataset and derivatives at Johns Hopkins. Is there an update on freeing space up at `/dcl01/smart`?
+This is a small technical update to say that processing for this is being run. It would still be nice to use `/dcl01/smart/data` as data, but I can make decent headway with the scratch space
 
-## Population Effect Sizes
+## Population Effect Sice / Precision
 
-I'm mainly working on trying to better understand the spatial precision of estimated effects. For this analysis, I've looked at a couple of variations, but the steps for this update are as follows. The reference dataset comprised 5000 participants. This gold-standard was compared against simulated studies with smaller sample sizes (10, 20, 30, 50, 100, 250, 500, 1000 participants), and each simulation repeated 20 times. In both the reference and smaller studies, the resulting z-maps were used to find clusters of activation (using FSL's `cluster`), using a cluster forming threshold of p < 0.001 (Figure 1) or p < 0.05 (Figure 2). This resulted in a set of clusters and peaks for the reference dataset (reference peaks) and each of the simulated studies (study peaks).
-
-A primary question is "how well can these smaller studies localize a peak activation as a function of sample size?". As a measure of accuracy, I have been looking at the smallest distance between each local reference peak within a cluster and any of the test peaks(Figures 1A,2A). As a measure of precision, I have been looking at the average distance of the study peaks from each other (Figures 1B, 2B). In general, localization improves with sample size, although that relationship is not clear in some of the clusters (e.g., both very large and very small clusters; Figure 2).
-
-```{r, fig.cap="Average Distance of Study Peaks From (A) Reference and (B) Each Other. Panel labels give the number of voxels within the reference peak's cluster. Cluster forming threshold was p < 0.001. Error bars span 95% confidence intervals.", fig.width=9}
-out <- qs::qread(here::here("data-raw/out0.qs")) |>
-  # group_by(n_sub, iter, `Cluster Index`) |> 
-  # slice_max(order_by = abs(Value), n=1) |>
-  # filter(cluster_size > 10) |>
-  group_by(n_sub, iter, `Cluster Index`) |>
-  slice_min(d, n=1, with_ties = FALSE) |> 
-  ungroup() 
-
-a <- out |> 
-  WISEsummary(
-    dependentvars = "d",
-    betweenvars = c("n_sub", "cluster_size")) |>
-  rename(size=cluster_size) |>
-  ggplot(aes(x=n_sub, y=d_mean)) + 
-  facet_wrap(~size, labeller = "label_both") +
-  scale_x_continuous(trans = "log10") +
-  geom_line() +
-  geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
-  ylab("Avg. Distance From Reference (mm)") +
-  xlab("N Participants") +
-  theme_gray(base_size = 8) 
-
-
-b <- out |>
-  group_nest(n_sub, cluster_size) |> 
-  mutate(
-    avg = map(
-      data, 
-      ~tibble(d=as.vector(dist(cbind(.x$x.study,.x$y.study,.x$z.study)))) |> 
-        WISEsummary(dependentvars = "d") )) |> 
-  select(-data) |> 
-  unnest(avg) |> 
-  rename(size=cluster_size) |>
-  ggplot(aes(x=n_sub, y=d_mean)) + 
-  facet_wrap(~size, labeller = "label_both") +
-  geom_line() +
-  scale_x_continuous(trans = "log10") +
-  geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
-  ylab("Avg. Distance Between Studies (mm)") +
-  xlab("N Participants") +
-  theme_gray(base_size = 8)
-
-a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
-
-```
-
-
-```{r, fig.cap="Average Distance of Study Peaks From (A) Reference and (B) Each Other. Panel are labeled as in Figure 1. Cluster forming threshold was p < 0.05. Error bars span 95% confidence intervals.", fig.width=9}
-out <- qs::qread(here::here("data-raw/out1.6.qs")) |>
-  group_by(n_sub, iter, `Cluster Index`) |> 
-  # slice_max(order_by = abs(Value), n=1) |>
-  # filter(cluster_size > 10) |>
-  # group_by(n_sub, iter) |>
-  slice_min(d, n=1, with_ties = FALSE) |> 
-  ungroup() 
-
-a <- out |> 
-  WISEsummary(
-    dependentvars = "d",
-    betweenvars = c("n_sub", "cluster_size")) |>
-  ggplot(aes(x=n_sub, y=d_mean)) + 
-  facet_wrap(~cluster_size, labeller = "label_both") +
-  geom_line() +
-  scale_x_continuous(trans = "log10") +
-  geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
-  ylab("Avg. Distance From Reference (mm)") +
-  xlab("N Participants") +
-  theme_gray(base_size = 8) 
-
-
-b <- out |>
-  group_nest(n_sub, cluster_size) |> 
-  mutate(
-    avg = map(
-      data, 
-      ~tibble(d=as.vector(dist(cbind(.x$x.study,.x$y.study,.x$z.study)))) |> 
-        WISEsummary(dependentvars = "d") )) |> 
-  select(-data) |> 
-  unnest(avg) |> 
-  ggplot(aes(x=n_sub, y=d_mean)) + 
-  facet_wrap(~cluster_size, labeller = "label_both") +
-  geom_line() +
-  scale_x_continuous(trans = "log10") +
-  geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
-  ylab("Avg. Distance Between Studies (mm)") +
-  xlab("N Participants") +
-  theme_gray(base_size = 8)
-
-a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
-
-```
-
-
-At both thresholds, many clusters spanned multiple anatomical regions. To assess how the peak localization varied across the brain, the above procedure was repeated but with the clusters replaced by anatomical region. That is, reference peaks were first grouped by anatomical region. Then, each local peak (from the reference study) within a region was compared against all study peaks, and the minimum distance for that region was recorded. This resulted in a single distance for each region that has a local peak in the gold-standard. 
-
-This anatomical grouping is the closest to what we've looked at before. The results have a few odd features that I cannot explain fully, like how the studies appear to get worse at localizing the reference peaks within the Left Amygdala, Hippocampus, and Occipital Pole as sample size increase (Figure 3). We had seen a similar oddity before, where it looked like the spatial precision increased for a few regions between samples sizes of 10 to 50. Increasing the number of participants in the reference scan seems to have removed that. As a sanity check, the average distances from the reference must necessarily to 0 as the study size approaches the reference sample size, so perhaps further increasing the numbers will smooth out these region-specific plots.
-
+I'm still trying to understand why grouping reference peaks by anatomical region seems to cause localization to worsen with increasing study size, for some regions. Figure 2 highlights the issue. It seems like the individual studies are finding one of two peaks, although only one of these peaks shows up in the reference region. I assume this has something to do with how the local peaks are thresholded, but I'm need to look more closely at that procedure. 
 
 ```{r, space, fig.cap="Average Distance of Study Peaks From (A) Reference and (B) Each Other. Panel labels correspond to the location of the local peak in the reference study and the number of the voxels within the peak's cluster. Note that cluster sizes are repeated due to clusters containing many local peaks. Cluster forming threshold was p < 0.001. Error bars span 95% confidence intervals.", fig.width=9}
 
 a <- plot_dist(here::here("data-raw/out0.qs")) +
-  ylim(0,30)
+  xlim(0,50)
 
 b <- plot_tmp(here::here("data-raw/out0.qs"))
 
 a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
-
+# a
 ```
 
 
-```{r, space2, fig.cap="Average Distance of Study Peaks From (A) Reference and (B) Each Other. Panels are labeled as in Figure 1. Cluster forming threshold was p < 0.05. Error bars span 95% confidence intervals.", fig.width=9}
+```{r, spaceC, fig.cap="Individual study peaks labeled by region", fig.width=9}
 
-a <- plot_dist(here::here("data-raw/out1.6.qs")) +
-  ylim(0,30)
+out <- qs::qread(here::here("data-raw/out0.qs")) |>
+  filter(!str_detect(label, "Brain-Stem")) |>
+  filter(cluster_size > 10) |>
+  mutate(label = str_c(label, cluster_size, sep = " ")) |>
+  group_by(label, n_sub, iter, cluster_size, sign) |>
+  slice_min(d, n=1) |>
+  ungroup() |>
+  mutate(n_sub = factor(n_sub)) 
 
-b <- plot_tmp(here::here("data-raw/out1.6.qs"))
+label.study <- out |> 
+  distinct(label, label.study) |>
+  group_nest(label) |>
+  mutate(
+    data = map(
+      data, 
+      ~distinct(.x,label.study) |>
+        mutate(ls = factor(label.study) |> as.numeric()))) |>
+  unnest(data) |>
+  mutate(ls = factor(ls))
 
-a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
 
+out |>
+  filter(str_detect(label, "Left Amyg")) |>
+  left_join(label.study, by = c("label","label.study")) |>
+  mutate(
+    label.hemi = if_else(x.study > 45, "Left ", "Right "),
+    label.study = if_else(str_detect(label.study, "Left|Right"), label.study, str_c(label.hemi, label.study))) |>
+  ggplot(aes(y=n_sub, x=d)) + 
+  facet_wrap(
+    ~label, 
+    # scales = "free_y",
+    labeller = ggplot2::label_wrap_gen(width = 20)) +
+  ggridges::geom_density_ridges(alpha = 0.7,
+    rel_min_height = 0.01) +
+  geom_point(aes(color=label.study), shape = 3, stroke=3, alpha =0.3) + 
+  xlab("Avg. Distance From Reference (mm)") +
+  ylab("N Participants") +
+  theme_gray(base_size = 8) 
+
+
+# b <- plot_tmp(here::here("data-raw/out0.qs"))
+
+# a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
+# a
 ```
 
