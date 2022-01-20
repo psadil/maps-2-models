@@ -1,5 +1,5 @@
 ---
-title: "November 18"
+title: "January 13"
 output: 
   bookdown::pdf_document2:
     number_sections: false
@@ -16,83 +16,189 @@ source(here::here("R", "updates.R"))
 # tar_config_set(store = here::here("_ale"))
 
 
-png_to_patch <- function(img, pix=NULL){
-  png::readPNG(img) |>
-    as.raster() |>
-    patchwork::wrap_elements()
+plot_dist <- function(outqs, min_cluster=10){
+  qs::qread(outqs) |>
+    filter(!str_detect(label, "Brain-Stem")) |>
+    filter(cluster_size > min_cluster) |>
+    mutate(label = str_c(label, cluster_size, sep = " ")) |>
+    group_by(label, n_sub, iter, cluster_size, sign) |>
+    summarise(d = min(d), .groups = "drop") |>
+    WISEsummary(
+      dependentvars = "d",
+      betweenvars = c("n_sub", "label", "cluster_size","sign")) |>
+    ggplot(aes(x=n_sub, y=d_mean, group=interaction(cluster_size,sign))) + 
+    facet_wrap(
+      ~label, 
+      # scales = "free_y",
+      labeller = ggplot2::label_wrap_gen(width = 20)) +
+    geom_line() +
+    scale_x_continuous(trans = "log10") +
+    geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
+    ylab("Avg. Distance From Reference (mm)") +
+    xlab("N Participants") +
+    theme_gray(base_size = 8) 
 }
-```
 
-
-## A2CPS
-
-
-### UC SNR
-
-With UC, there are two features to explain: why is the anatomical SNR higher, and why is the SNR more variable. I think we've found an answer to both of these that relates to features of the data that Vince mentioned at the DIRC meeting, about a possible dynamic range issue. For anatomical scans from UC, most of the background has intensity of 0 (Figure \@ref(fig:anatUC)), but most of the background is non-zero for the other sites.
-
-```{r, anatUC, echo=FALSE, out.width='100%', fig.cap="Anatomical for UC10036V1. Pixels are colored such that the lowest non-zero intensities are pink and the zero intensities are black. Most voxels outside of the brian have zero intensity."}
-knitr::include_graphics('img/UC10036V1_T1w.png')
-```
-
-That most air voxels are being forced to 0 in UC scans could cause the SNR for UC to appear to be more variable. MRIQC calculates the "noise" in with the variability of the signal in an air mask. Voxels in that air mask with intensity of 0 are excluded. So, when more of the background is 0, there are fewer voxels used to calculate the noise (Figure \@ref(fig:anatUC2)). The remaining voxels tend to be near the head (e.g., pink regions in Figure \@ref(fig:anatUC)). Voxels near the head have a relatively high intensity and standard deviation, whereas voxels far from the head have low intensity and standard deviation. So for UC, when the air mask is relatively small, the noise in SNR is calculated with only a few noisy voxels, driving down the estimated SNR. But when the air mask is relatively large, the noise in SNR is calculated with this same set of noisy voxels in addition to a larger set that is relatively quiet, driving up the estimated SNR. But whether a voxel in the background will be represented with 0 or some other value seems to be variable, causing spurious variability in the air mask and SNR distribution.
-
-```{r, anatUC2, echo=FALSE, out.width='100%', fig.cap="Examples of Smaller and Larger Hat Masks. Regions inside the red shape are used to calculate noise in SNR calculation. These shapes exclude voxels with intensity 0. "}
-(png_to_patch('img/sub-10103_ses-V1_T1w-air.png') + ggtitle("UC10103V1")) / 
-(png_to_patch('img/sub-10102_ses-V1_T1w-air.png')+ ggtitle("UC10102V1") )
-```
-
-I'm not sure whether the abundance of intensity 0 voxels in the UC data is a feature or issue. The underlying data are stored as 16-bit integers, which limits the range of values that can be used to represent voxel intensities. One way in which these 0 values could be a feature is that it enables better precision of voxels in the brain. It may also be due to differences in how the data are converted into DICOMs. Tanmay and Jamie have checked Philips T1 scans from other datasets. Interestingly, many background voxels from those scans also have intensity 0. So, this might not be a UC-specific thing, but instead a (possibly known) aspect of working with Philips data.
-
-A summary is that the variability in SNR may be due to the range of intensities used to represent the data in Philips scans, and specifically thresholding at the low end. In that case, it's unclear whether the UC scans actually have higher SNR (they still may), or whether the reported values are spurious (it's harder to estimate SNR with so many voxels missing intensity values). 
-
-### "Low" SNR at NS, UI, and UM
-
-There was some concern expressed that the absolute value of the SNR at the other sites may be low. I don't have a solid explanation for the SNR magnitude at NS, UI, and UM. I think the most valuable information would be the MRIQC metrics for the ABCD dataset, since SNR will depend on the scanning protocol and the A2CPS protocol is close to the one used in ABCD. Another useful comparison is against the datasets, like the datasets Tor shared. That latter comparison supports the claim that SNR for the non-UC sites appears low. Note that 1) we haven't seen scans with lower SNR than have been shown at the imaging sites meetings, and 2) the traveling human scans have SNR values that are contained within the relevant site-wise distributions. So, the absolute value of SNR may not be critical, since the distributions within these sites still allow us to flag outliers -- to flag scans with problematic SNR.
-
-### Ghosting at NS
-
-The final point raised at the meeting was about ghosting. It sounds like there is a standard threshold for ghosting, that the ghost-to-signal ratio on a scanner must be lower than 5%. It sounds like that is estimated with a phantom, presumably using a standardized sequence. For the A2CPS data, the GSR as calculated by MRIQC for most sites is under %5, but for NS it is between 10-15%. It's worth noting these distributions are comparable to the GSR for the second traveling human; in each of the four functional scans at NS it's around 14%, and at UI it's around 2%. This suggests that the calculation is consistent between subjects and traveling human, but it leaves open whether MRIQC is picking up anything relevant in the data. 
-
-To see whether MRIQC's GSR estimation tracks any meaningful feature of the data, I think it's worth looking at the comparison we showed in September's Imaging Sites meeting (reproduced in Figure \@ref(fig:gsr)). By highlighting the background, participants with high GSR (i.e., participants from NS) show evidence of artifact in the ghost-prone regions. Note that this artifact would be easily missed in a visual check of the raw data (e.g., top row of Figure \@ref(fig:gsr)). Back in September, a follow-up of looking at Phantom data was mentioned, followed by the possibility of consulting with a Siemens engineer. 
-
-This artifact is evidence that the difference in GSR distributions is real, although the importance of that difference is still an open question.
-
-```{r, gsr, fig.cap="Examples of Better and Worse Ghost-to-Signal Ratio. The first row shows the average signal (across time) in the raw image, for participant with a better (UI10034V1) and worse (NS10047V1) GSR. The bottom row shos the same averages, but the color scale has been shifted so that most voxels in the brain are saturated and the background variation is highlighted."}
-better0 <- imager::load.image(here::here("analysis", "updates", "img", "sub-10034_z6.png")) |>
-  # imager::imrotate(180) |>
-  imager::imresize(4, interpolation = 6) |>
-  imager::grayscale() |>
-  # as.raster(colorscale = cscale) |>
-  as.raster() |>
-  patchwork::wrap_elements()
-
-worse0 <- imager::load.image(here::here("analysis", "updates", "img", "sub-10047_z4.png")) |>
-  # imager::imrotate(180) |>
-  imager::imresize(4, interpolation = 6) |>
-  imager::grayscale() |>
-  as.raster() |>
-  patchwork::wrap_elements()
-
-better <- imager::load.image(here::here("analysis", "updates", "img", "better.png")) |>
-  imager::imrotate(180, interpolation = 6) |>
-  imager::imresize(4, interpolation = 6) |>
-  imager::grayscale() |>
-  # as.raster(colorscale = cscale) |>
-  as.raster() |>
-  patchwork::wrap_elements()
-
-worse <- imager::load.image(here::here("analysis", "updates", "img", "worse.png")) |>
-  imager::imrotate(180, interpolation = 6) |>
-  imager::imresize(4, interpolation = 6) |>
-  imager::grayscale() |>
-  as.raster() |>
-  patchwork::wrap_elements()
-
-
-((better0 + ggtitle(label="better (UI10034V1)")) + (worse0 + ggtitle(label="worse (NS10047V1)"))) /
-  (better + worse)
+plot_tmp <- function(outqs, min_cluster=10){
+  qs::qread(outqs) |>
+    filter(!str_detect(label, "Brain-Stem")) |>
+    filter(cluster_size > min_cluster) |>
+    mutate(label = str_c(label, cluster_size, sep = " ")) |>
+    group_by(label, n_sub, iter, cluster_size, sign) |> 
+    filter(d == min(d)) |> 
+    ungroup() |> 
+    group_nest(n_sub, sign, label, cluster_size) |> 
+    mutate(
+      avg = map(
+        data, 
+        ~tibble(d=as.vector(dist(cbind(.x$x.study,.x$y.study,.x$z.study)))) |> 
+          WISEsummary(dependentvars = "d") )) |> 
+    select(-data) |> 
+    unnest(avg) |> 
+    ggplot(aes(x=n_sub, y=d_mean, group=interaction(cluster_size,sign))) + 
+    facet_wrap(
+      ~label, 
+      labeller = ggplot2::label_wrap_gen(width = 20)) +
+    geom_line() +
+    scale_x_continuous(trans = "log10") +
+    geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
+    ylab("Avg. Distance Between Studies (mm)") +
+    xlab("N Participants") +
+    theme_gray(base_size = 8)
+}
 
 ```
 
+
+## Spacetop
+
+I've moved some of the data to the JHPCE cluster. This has been done with Datalad, which includes tools for retrieving whichever parts of data are actively being processed (e.g., individual participants being run through fmriprep). However, there is some difficulty in accessing the Dartmouth cluster from the JHPCE, so it looks like it would be helpful if we could store an entire copy of the dataset and derivatives at Johns Hopkins. Is there an update on freeing space up at `/dcl01/smart`?
+
+## Population Effect Sizes
+
+I'm mainly working on trying to better understand the spatial precision of estimated effects. For this analysis, I've looked at a couple of variations, but the steps for this update are as follows. The reference dataset comprised 5000 participants. This gold-standard was compared against simulated studies with smaller sample sizes (10, 20, 30, 50, 100, 250, 500, 1000 participants), and each simulation repeated 20 times. In both the reference and smaller studies, the resulting z-maps were used to find clusters of activation (using FSL's `cluster`), using a cluster forming threshold of p < 0.001 (Figure 1) or p < 0.05 (Figure 2). This resulted in a set of clusters and peaks for the reference dataset (reference peaks) and each of the simulated studies (study peaks).
+
+A primary question is "how well can these smaller studies localize a peak activation as a function of sample size?". As a measure of accuracy, I have been looking at the smallest distance between each local reference peak within a cluster and any of the test peaks(Figures 1A,2A). As a measure of precision, I have been looking at the average distance of the study peaks from each other (Figures 1B, 2B). In general, localization improves with sample size, although that relationship is not clear in some of the clusters (e.g., both very large and very small clusters; Figure 2).
+
+```{r, fig.cap="Average Distance of Study Peaks From (A) Reference and (B) Each Other. Panel labels give the number of voxels within the reference peak's cluster. Cluster forming threshold was p < 0.001. Error bars span 95% confidence intervals.", fig.width=9}
+out <- qs::qread(here::here("data-raw/out0.qs")) |>
+  # group_by(n_sub, iter, `Cluster Index`) |> 
+  # slice_max(order_by = abs(Value), n=1) |>
+  # filter(cluster_size > 10) |>
+  group_by(n_sub, iter, `Cluster Index`) |>
+  slice_min(d, n=1, with_ties = FALSE) |> 
+  ungroup() 
+
+a <- out |> 
+  WISEsummary(
+    dependentvars = "d",
+    betweenvars = c("n_sub", "cluster_size")) |>
+  rename(size=cluster_size) |>
+  ggplot(aes(x=n_sub, y=d_mean)) + 
+  facet_wrap(~size, labeller = "label_both") +
+  scale_x_continuous(trans = "log10") +
+  geom_line() +
+  geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
+  ylab("Avg. Distance From Reference (mm)") +
+  xlab("N Participants") +
+  theme_gray(base_size = 8) 
+
+
+b <- out |>
+  group_nest(n_sub, cluster_size) |> 
+  mutate(
+    avg = map(
+      data, 
+      ~tibble(d=as.vector(dist(cbind(.x$x.study,.x$y.study,.x$z.study)))) |> 
+        WISEsummary(dependentvars = "d") )) |> 
+  select(-data) |> 
+  unnest(avg) |> 
+  rename(size=cluster_size) |>
+  ggplot(aes(x=n_sub, y=d_mean)) + 
+  facet_wrap(~size, labeller = "label_both") +
+  geom_line() +
+  scale_x_continuous(trans = "log10") +
+  geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
+  ylab("Avg. Distance Between Studies (mm)") +
+  xlab("N Participants") +
+  theme_gray(base_size = 8)
+
+a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
+
+```
+
+
+```{r, fig.cap="Average Distance of Study Peaks From (A) Reference and (B) Each Other. Panel are labeled as in Figure 1. Cluster forming threshold was p < 0.05. Error bars span 95% confidence intervals.", fig.width=9}
+out <- qs::qread(here::here("data-raw/out1.6.qs")) |>
+  group_by(n_sub, iter, `Cluster Index`) |> 
+  # slice_max(order_by = abs(Value), n=1) |>
+  # filter(cluster_size > 10) |>
+  # group_by(n_sub, iter) |>
+  slice_min(d, n=1, with_ties = FALSE) |> 
+  ungroup() 
+
+a <- out |> 
+  WISEsummary(
+    dependentvars = "d",
+    betweenvars = c("n_sub", "cluster_size")) |>
+  ggplot(aes(x=n_sub, y=d_mean)) + 
+  facet_wrap(~cluster_size, labeller = "label_both") +
+  geom_line() +
+  scale_x_continuous(trans = "log10") +
+  geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
+  ylab("Avg. Distance From Reference (mm)") +
+  xlab("N Participants") +
+  theme_gray(base_size = 8) 
+
+
+b <- out |>
+  group_nest(n_sub, cluster_size) |> 
+  mutate(
+    avg = map(
+      data, 
+      ~tibble(d=as.vector(dist(cbind(.x$x.study,.x$y.study,.x$z.study)))) |> 
+        WISEsummary(dependentvars = "d") )) |> 
+  select(-data) |> 
+  unnest(avg) |> 
+  ggplot(aes(x=n_sub, y=d_mean)) + 
+  facet_wrap(~cluster_size, labeller = "label_both") +
+  geom_line() +
+  scale_x_continuous(trans = "log10") +
+  geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
+  ylab("Avg. Distance Between Studies (mm)") +
+  xlab("N Participants") +
+  theme_gray(base_size = 8)
+
+a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
+
+```
+
+
+At both thresholds, many clusters spanned multiple anatomical regions. To assess how the peak localization varied across the brain, the above procedure was repeated but with the clusters replaced by anatomical region. That is, reference peaks were first grouped by anatomical region. Then, each local peak (from the reference study) within a region was compared against all study peaks, and the minimum distance for that region was recorded. This resulted in a single distance for each region that has a local peak in the gold-standard. 
+
+This anatomical grouping is the closest to what we've looked at before. The results have a few odd features that I cannot explain fully, like how the studies appear to get worse at localizing the reference peaks within the Left Amygdala, Hippocampus, and Occipital Pole as sample size increase (Figure 3). We had seen a similar oddity before, where it looked like the spatial precision increased for a few regions between samples sizes of 10 to 50. Increasing the number of participants in the reference scan seems to have removed that. As a sanity check, the average distances from the reference must necessarily to 0 as the study size approaches the reference sample size, so perhaps further increasing the numbers will smooth out these region-specific plots.
+
+
+```{r, space, fig.cap="Average Distance of Study Peaks From (A) Reference and (B) Each Other. Panel labels correspond to the location of the local peak in the reference study and the number of the voxels within the peak's cluster. Note that cluster sizes are repeated due to clusters containing many local peaks. Cluster forming threshold was p < 0.001. Error bars span 95% confidence intervals.", fig.width=9}
+
+a <- plot_dist(here::here("data-raw/out0.qs")) +
+  ylim(0,30)
+
+b <- plot_tmp(here::here("data-raw/out0.qs"))
+
+a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
+
+```
+
+
+```{r, space2, fig.cap="Average Distance of Study Peaks From (A) Reference and (B) Each Other. Panels are labeled as in Figure 1. Cluster forming threshold was p < 0.05. Error bars span 95% confidence intervals.", fig.width=9}
+
+a <- plot_dist(here::here("data-raw/out1.6.qs")) +
+  ylim(0,30)
+
+b <- plot_tmp(here::here("data-raw/out1.6.qs"))
+
+a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
+
+```
 
