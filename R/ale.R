@@ -14,8 +14,6 @@ prep_cope_tbl <- function(cope_files, n_sub, n_study, iter=1){
 }
 
 do_z <- function(cope_files){
-<<<<<<< HEAD
-  
   z_stats <- cope_files %>%
     dplyr::group_nest(
       study, n_sub, iter, n_study) |>
@@ -36,30 +34,6 @@ do_z <- function(cope_files){
     dplyr::select(study, n_sub, iter, n_study, z) |>
     dplyr::mutate(z = fs::path_rel(z, here::here()))
   
-=======
-  
-  z_stats <- cope_files %>%
-    dplyr::rowwise() |>
-    dplyr::mutate(
-      z_stat = list(calc_z(copes))) |>
-    dplyr::ungroup() |>
-    dplyr::mutate(
-      z_file = here::here(
-        "data-raw",
-        "niis", 
-        glue::glue("nstudy-{n_study}_nsub-{n_sub}_study-{study}_iter-{iter}_z.nii.gz")))
-  
-  purrr::walk2(
-    z_stats$z_stat, 
-    z_stats$z_file, 
-    neurobase::writenii)
-  
-  z_stats |>
-    dplyr::select(-z_stat) |>
-    dplyr::rename(z = z_file) |>
-    dplyr::mutate(z = fs::path_rel(z, here::here()))
-
->>>>>>> b52e1bc39b0aa7b25061113e3542ef368c77e1c0
 }
 
 

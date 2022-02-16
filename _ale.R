@@ -91,28 +91,15 @@ augment_distance <- function(study, reference){
 list(
   tar_target(
     avail,
-    here::here("data-raw", "avail.txt"),
+    here::here("data-raw", "cope5.txt"),
     format = "file"),
   tar_target(
-    feat_dirs,
-    readr::read_lines(avail, num_threads=1),
-    format = "qs"),
-  tar_target(n_sub, c(10, 20, 50, 100, 250, 500, 1000)),
-  tar_target(n_study, c(1)),
-  tar_target(iter, seq_len(50)),
-  tar_target(
     cope5,
-    apply_reg_cope(feat_dirs, tar_path()),
-    format = "file", 
-    pattern = map(feat_dirs),
-    storage = "worker",
-    retrieval = "worker", error="continue",
-    resources = tar_resources(
-      future = tar_resources_future(
-        plan = tweak(
-          batchtools_sge,
-          template = "tools/sge.tmpl",
-          resources = list(mem_free = "512M"))))),
+    readr::read_lines(avail, num_threads=1),
+    format = "file"),
+  tar_target(n_sub, c(10, 20)),
+  tar_target(n_study, c(1)),
+  tar_target(iter, seq_len(2)),
   tar_target(
     cope_files,
     prep_cope_tbl(cope5, n_sub=n_sub, iter=iter, n_study=n_study),
