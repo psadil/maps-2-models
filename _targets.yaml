@@ -3,4 +3,4 @@ main:
   store: _targets
 ale:
   script: _ale.R
-  store: /home/psadil/Documents/git/meta/_ale
+  store: _ale
