@@ -23,12 +23,12 @@ key <- readr::read_csv(
 
 # for list of imaging categories: https://biobank.ctsu.ox.ac.uk/crystal/label.cgi?id=100
 
-d <- readr::read_tsv(
-  "data-raw/ukb37917.tab", 
+d <- readr::read_csv(
+  here::here("data-raw/ukb37917_narrow.csv"), 
   n_max = 1000,
-  col_select = c(
-    "f.eid",
-    tidyselect::matches(glue::glue("f.({paste(unique(key$FieldID), sep='|')}).[[:digit:]]+.[[:digit:]]+"))),  
+  # col_select = c(
+  #   "f.eid",
+  #   tidyselect::matches(glue::glue("f.({paste(unique(key$FieldID), sep='|')}).[[:digit:]]+.[[:digit:]]+"))),  
   col_types = cols(
     f.eid = col_integer(),
     .default = col_character())) |>

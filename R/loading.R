@@ -94,3 +94,16 @@ load_tab <- function(fname, key, n_max){
     dplyr::distinct(f.eid, ethnicity, .keep_all = TRUE)
   
 }
+
+
+load_tab_narrow <- function(fname, key, n_max=Inf){
+  readr::read_csv(
+    fname,
+    n_max = n_max,
+    col_select = c("f.eid","20016","25010"),  
+    col_types = readr::cols(
+      f.eid = readr::col_integer(),
+      .default = readr::col_number())) |>
+    na.omit()
+}
+

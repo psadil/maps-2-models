@@ -1,5 +1,5 @@
 ---
-title: "October 26"
+title: "January 20"
 output: 
   bookdown::pdf_document2:
     number_sections: false
@@ -7,168 +7,150 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = TRUE, dev = "ragg_png", dpi=200, fig.width = 5)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = FALSE, dev = "ragg_png", dpi=200)
 library(tidyverse)
-library(targets)
-library(effectsize)
 library(patchwork)
 
 source(here::here("R", "updates.R"))
-Sys.setenv(TAR_PROJECT = "ale")
-tar_config_set(store = here::here("_ale"))
+# Sys.setenv(TAR_PROJECT = "ale")
+# tar_config_set(store = here::here("_ale"))
+
+point_size <- 1
+
+plot_dist <- function(outqs, min_cluster=10, ps=point_size){
+  qs::qread(outqs) |>
+    filter(!str_detect(label, "Brain-Stem")) |>
+    filter(cluster_size > min_cluster) |>
+    mutate(label = str_c(label, cluster_size, sep = " ")) |>
+    group_by(label, n_sub, iter, cluster_size, sign) |>
+    summarise(d = min(d), .groups = "drop") |>
+    mutate(n_sub = factor(n_sub)) |>
+    # WISEsummary(
+    #   dependentvars = "d",
+    #   betweenvars = c("n_sub", "label", "cluster_size","sign")) |>
+    ggplot(aes(y=n_sub, x=d)) + 
+    facet_wrap(
+      ~label, 
+      # scales = "free_y",
+      labeller = ggplot2::label_wrap_gen(width = 20)) +
+    ggridges::geom_density_ridges(
+      jittered_points = TRUE,
+      position = ggridges::position_points_jitter(width = 0.05, height = 0),
+      point_shape = '|', 
+      point_size = ps, 
+      point_alpha = 1, 
+      alpha = 0.7,
+      rel_min_height = 0.01) +
+    # geom_line() +
+    # scale_x_continuous(trans = "log10") +
+    # geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
+    xlab("Avg. Distance From Reference (mm)") +
+    ylab("N Participants") +
+    theme_gray(base_size = 8) 
+}
+
+plot_tmp <- function(outqs, min_cluster=10){
+  qs::qread(outqs) |>
+    filter(!str_detect(label, "Brain-Stem")) |>
+    filter(cluster_size > min_cluster) |>
+    mutate(label = str_c(label, cluster_size, sep = " ")) |>
+    group_by(label, n_sub, iter, cluster_size, sign) |> 
+    filter(d == min(d)) |> 
+    ungroup() |> 
+    group_nest(n_sub, sign, label, cluster_size) |> 
+    mutate(
+      avg = map(
+        data, 
+        ~tibble(d=as.vector(dist(cbind(.x$x.study,.x$y.study,.x$z.study)))) |> 
+          WISEsummary(dependentvars = "d") )) |> 
+    select(-data) |> 
+    unnest(avg) |> 
+    ggplot(aes(x=n_sub, y=d_mean, group=interaction(cluster_size,sign))) + 
+    facet_wrap(
+      ~label, 
+      labeller = ggplot2::label_wrap_gen(width = 20)) +
+    geom_line() +
+    scale_x_continuous(trans = "log10") +
+    geom_errorbar(aes(ymin=d_CI_lower, ymax=d_CI_upper)) +
+    ylab("Avg. Distance Between Studies (mm)") +
+    xlab("N Participants") +
+    theme_gray(base_size = 8)
+}
+
 ```
 
 
-```{r, data}
+## Biobank
 
-tar_load(comparison)
-tar_load(z_pop)
+One participant appears to have corrupted task fMRI data 1435310 . That is, they have data files, but the files are all of size 0.
 
-mask_nii <- fslr::mni_img(mm="2", mask=TRUE, brain=TRUE) 
+(`/dcl01/smart/data/UKBiobank/task_fMRI/1435310_20249_2_0/fMRI/tfMRI.feat`)
 
-pop <- neurobase::img_indices(z_pop, mask=mask_nii, add_values = TRUE) |>
-  as_tibble() |>
-  rename(pop = value) |>
-  mutate(pop = effectsize::z_to_d(pop, n = 900)[,1])
+## Spacetop
 
-seg <- neurobase::img_indices(MNITemplate::readMNISeg(res="2mm"), add_values=TRUE) |>
-  as_tibble() |>
-  filter(value == 2) |>
-  select(-value)
+This is a small technical update to say that processing for this is being run. It would still be nice to use `/dcl01/smart/data` as data, but I can make decent headway with the scratch space
 
-tmp <- comparison  |>
-  semi_join(seg, by = c("x","y","z")) 
+## Population Effect Sice / Precision
 
-# ibma
-ibma <- neurobase::niftiarr(
-  mask_nii,
-  neurobase::readnii(here::here("data-raw","niis","nsub-10_nstudy-10_iter-1_ma-ib_z.nii.gz"))) |>
-  neurobase::img_indices(mask = mask_nii, add_values = TRUE) |>
-  as_tibble() |>
-  semi_join(seg, by = c("x", "y", "z")) |>
+I'm still trying to understand why grouping reference peaks by anatomical region seems to cause localization to worsen with increasing study size, for some regions. Figure 2 highlights the issue. It seems like the individual studies are finding one of two peaks, although only one of these peaks shows up in the reference region. I assume this has something to do with how the local peaks are thresholded, but I'm need to look more closely at that procedure. 
+
+```{r, space, fig.cap="Average Distance of Study Peaks From (A) Reference and (B) Each Other. Panel labels correspond to the location of the local peak in the reference study and the number of the voxels within the peak's cluster. Note that cluster sizes are repeated due to clusters containing many local peaks. Cluster forming threshold was p < 0.001. Error bars span 95% confidence intervals.", fig.width=9}
+
+a <- plot_dist(here::here("data-raw/out0.qs")) +
+  xlim(0,50)
+
+b <- plot_tmp(here::here("data-raw/out0.qs"))
+
+a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
+# a
+```
+
+
+```{r, spaceC, fig.cap="Individual study peaks labeled by region", fig.width=9}
+
+out <- qs::qread(here::here("data-raw/out0.qs")) |>
+  filter(!str_detect(label, "Brain-Stem")) |>
+  filter(cluster_size > 10) |>
+  mutate(label = str_c(label, cluster_size, sep = " ")) |>
+  group_by(label, n_sub, iter, cluster_size, sign) |>
+  slice_min(d, n=1) |>
+  ungroup() |>
+  mutate(n_sub = factor(n_sub)) 
+
+label.study <- out |> 
+  distinct(label, label.study) |>
+  group_nest(label) |>
   mutate(
-    value = z_to_d(value, n=10)[,1])
+    data = map(
+      data, 
+      ~distinct(.x,label.study) |>
+        mutate(ls = factor(label.study) |> as.numeric()))) |>
+  unnest(data) |>
+  mutate(ls = factor(ls))
 
+
+out |>
+  filter(str_detect(label, "Left Amyg")) |>
+  left_join(label.study, by = c("label","label.study")) |>
+  mutate(
+    label.hemi = if_else(x.study > 45, "Left ", "Right "),
+    label.study = if_else(str_detect(label.study, "Left|Right"), label.study, str_c(label.hemi, label.study))) |>
+  ggplot(aes(y=n_sub, x=d)) + 
+  facet_wrap(
+    ~label, 
+    # scales = "free_y",
+    labeller = ggplot2::label_wrap_gen(width = 20)) +
+  ggridges::geom_density_ridges(alpha = 0.7,
+    rel_min_height = 0.01) +
+  geom_point(aes(color=label.study), shape = 3, stroke=3, alpha =0.3) + 
+  xlab("Avg. Distance From Reference (mm)") +
+  ylab("N Participants") +
+  theme_gray(base_size = 8) 
+
+
+# b <- plot_tmp(here::here("data-raw/out0.qs"))
+
+# a + b + plot_annotation(tag_levels = "A", tag_suffix = ")")
+# a
 ```
-
-
-## UK Biobank
-
-### Oracle Grant
-
-You saw that the grant was funded. I think this will be a fun project, A couple of closely related reports came out recently. 
-
-### Meta Analysis
-
-#### Coordinate-Based
-
-
-```{r, zbyd, fig.cap="Relationship between ALE z-statistic and gold standard Cohen's d. Points correspond to voxels within a gray matter mask. Only voxels with positive Cohen's d are shown. Solid line has unit slope and intercept 0.", fig.height=4, fig.width=4}
-tmp |>
-  filter(Z > 0) |>
-  group_by(n_sub, n_study, x, y, z) |>
-  summarise(Z = mean(Z), .groups = "drop") |>
-  left_join(pop, by = c("x","y","z")) |>
-  filter(pop > 0) |>
-  ggplot(aes(x = pop, y = Z)) +
-  facet_grid(n_sub ~ n_study, labeller = label_both) +
-  geom_abline(slope=1, intercept = 0) +
-  geom_point(alpha = .01) +
-  # coord_fixed() +
-  xlab("Cohen's d (Population)") +
-  ylab("z-stat (Meta)")
-```
-
-There is some linear or nearly linear relationship between these values within groups of voxels, a relationship that depends on both the number of participants per study and the number of studies per analysis. However, there groups of voxels within individual studies show "streaks". Those streaks often comprise voxels within a cluster. I'm still not seeing a way that ALE can recover the voxel-wise effect sizes. But now I'm thinking that there must be a way to recover the "effect size" of the clusters themselves by incorporating the spatial extent of each cluster. This seems like something that would have been done before, although I'm not aware of a common method for doing so.
-
-The spatial overlap of active voxels shows a simpler picture (Figure \@ref(fig:cbmadice)); increasing the number of observations within a meta-analysis increases the dice coefficient. Note that these coefficients are much smaller than we looked at last week. Last week, we were looking at coefficients calculated from voxels restricted to clusters from the meta-analysis, whereas these these coefficients were calculated across the all of gray matter. Also, see that increasing the number of participants and studies also increases the false positive rate. 
-
-```{r, cbmadice, fig.cap="Spatial Overlap within Gray Matter. In both meta-analyses and gold standard, voxels were thresholded at p < 0.01. Points correspond to separate meta-analysis, five per combination of study and participant counts.", fig.width=3, fig.width=7}
-
-thresh <- 0.99
-
-a <- tmp |>
-  left_join(pop |> mutate(pop = pop*sqrt(900)), by = c("x","y","z")) |>
-  calc_dice_whole(Z, lower = qnorm(thresh)) |>
-  ggplot(aes(x=n_study, y=dice)) +
-  facet_wrap(~n_sub, labeller = label_both) +
-  geom_point(alpha = 0.5) +
-  scale_y_continuous(
-    name = "Dice Coefficient",
-    limits = c(0,0.5))
-
-b <- tmp |>
-  left_join(pop |> mutate(pop = pop*sqrt(900)), by = c("x","y","z")) |>
-  calc_tpr_whole(Z, lower = qnorm(thresh)) |>
-  ggplot(aes(x=n_study, y=dice)) +
-  facet_wrap(~n_sub, labeller = label_both) +
-  geom_point(alpha = 0.5) +
-  scale_y_continuous(
-    name = "True Positive Rate",
-    limits = c(0, 0.25))
-
-c <- tmp |>
-  left_join(pop |> mutate(pop = pop*sqrt(900)), by = c("x","y","z")) |>
-  calc_fpr_whole(Z, lower = qnorm(thresh)) |>
-  ggplot(aes(x=n_study, y=dice)) +
-  facet_wrap(~n_sub, labeller = label_both) +
-  geom_point(alpha = 0.5) +
-  scale_y_continuous(
-    name = "False Positive Rate",
-    limits = c(0,0.25))
-
-a | (b + c) + plot_layout(nrow=2)
-
-```
-
-
-#### Image-Based
-
-The image-based meta analysis has a simple way of calculating effect sizes. However, I have only used a meta-analysis that is a fixed effects analysis, whereas the gold-standard was set up as a mixed effects. I believe that this is causing a mismatch between the effect sizes. For an example, see Figure \@ref(fig:ibma).
-
-```{r, ibma, fig.cap="Example Comparison Between Image-Based Meta-Analysis and Population Gold Standard. The population-based effects were calculated with a mixed effects analysis, whereas the meta-analysis was done with a fixed effects (Stouffer's weighted method). Meta-analysis is of 10 studies, each with 10 participants.", fig.height=3}
-
-# p <- tmp |>
-#   filter(Z > 0) |>
-#   group_by(n_sub, n_study, x, y, z) |>
-#   summarise(d = mean(d), .groups = "drop") |>
-#   left_join(pop, by = c("x","y","z")) |>
-#   filter(pop > 0) |>
-#   ggplot(aes(x = pop, y = d)) +
-#   facet_grid(n_sub ~ n_study, labeller = label_both) +
-#   geom_abline(slope=1, intercept = 0) +
-#   geom_point(alpha = .01) +
-#   # coord_fixed() +
-#   xlab("Cohen's d (Population)") +
-#   ylab("z-stat / sqrt(n) (Meta)")
-
-# ggsave("tmp3.png", p, device = ragg::agg_png)
-
-
-# p2 <- tmp |>
-#   filter(pop > 0) |>
-#   group_by(n_sub, n_study, x, y, z) |>
-#   summarise(Z = mean(Z), p = mean(p), stat=mean(stat), .groups = "drop") |>
-#   mutate(pop = pop / sqrt(n_study)) |>
-#   left_join(ibma, by = c("x", "y", "z")) |>
-#   ggplot(aes(x = pop, y = value)) +
-#   facet_grid(n_sub ~ n_study, labeller = label_both) +
-#   geom_point(alpha = .01) +
-#   coord_fixed() +
-#   xlab("Cohen's d (Population)") +
-# #   ylab("Cohen's d (IB Meta)")
-
-ibma |>
-  left_join(pop, by = c("x", "y", "z")) |>
-  ggplot(aes(x = pop, y = value)) +
-  geom_point(alpha = .01) +
-  geom_abline(slope=1, intercept = 0) +
-  coord_fixed() +
-  xlab("Cohen's d (Population; MFX)") +
-  ylab("Cohen's d (IB Meta; FFX)")
-
-```
-
-
-## Other
 

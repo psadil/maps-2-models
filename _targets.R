@@ -1,4 +1,5 @@
-# Sys.setenv(TAR_PROJECT = "targets")
+Sys.setenv(TAR_PROJECT = "targets")
+options(clustermq.scheduler = "multiprocess")
 
 library(targets)
 
@@ -25,15 +26,15 @@ list(
     format = "fst_tbl"),
   tar_target(
     fname,
-    here::here("data-raw", "ukb37917.tab"),
+    here::here("data-raw", "ukb37917_narrow.csv"),
     format = "file"),
   tar_target(
     ukb, 
-    load_tab(fname, key, n_max=Inf),
+    load_tab_narrow(fname, key, n_max=Inf),
     format = "fst_tbl"),
   tar_target(
     n,
-    c(10, 20, 40, 100, 1000)),
+    c(10, 20, 40, 100, 1000, 2500, 5000, 10000)),
   tar_target(i, seq_len(1000)),
   tar_target(
     ukb_split,
