@@ -3,10 +3,9 @@
 #$ -l mem_free=2G 
 #$ -l h_vmem=2G
 #$ -cwd
-#$ -m e
-#$ -M psadil1@jh.edu
 
-module load conda_R/4.1.x
+# module load conda_R/4.1.x
+conda activate meta_R
 
-Rscript -e "targets::tar_make_future(cope5, script='_ale.R', workers = 100, store='/fastscratch/myscratch/pssadil/_targets')"
+Rscript -e "targets::tar_make_future(script='_ale.R', workers = 100, store='/fastscratch/myscratch/pssadil/_targets')"
 

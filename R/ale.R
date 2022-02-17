@@ -72,8 +72,7 @@ do_t <- function(cope_files){
 }
 
 calc_t_vcope <- function(cope_files){
-  copes <- purrr::map(cope_files, ~neurobase::readnii(.x)@.Data) %>%
-    simplify2array()
+  copes <- RNifti::readNifti(cope_files) |> simplify2array()
   stopifnot(length(dim(copes)) == 4)
   n <- dim(copes)[4]
   means <- apply(copes, 1:3, mean)
@@ -88,8 +87,7 @@ calc_t_vcope <- function(cope_files){
 
 
 calc_z <- function(cope_files){
-  copes <- purrr::map(cope_files, ~neurobase::readnii(.x)@.Data) %>%
-    simplify2array()
+  copes <- RNifti::readNifti(cope_files) |> simplify2array()
   stopifnot(length(dim(copes)) == 4)
   n <- dim(copes)[4]
   means <- apply(copes, 1:3, mean)
