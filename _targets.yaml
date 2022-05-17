@@ -1,0 +1,11 @@
+tfce0:
+  store: _tfce0
+  script: _tfce0.R
+tfce:
+  store: _tfce
+  script: _tfce.R
+tfce1:
+  store: _tfce1
+  script: _tfce1.R
+
+

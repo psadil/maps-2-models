@@ -1,0 +1,263 @@
+---
+title: ""
+output: html_document
+date: '2022-05-12'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(purrr)
+library(patchwork)
+
+to_tbl0 <- function(value, measure="value"){
+  dimnames(value) <- list(
+    "x" = seq_len(dim(value)[1]),
+    "y" = seq_len(dim(value)[2]),
+    "z" = seq_len(dim(value)[3]))
+  cubelyr::as.tbl_cube(value, met_name=measure) |> 
+    tibble::as_tibble()  
+}
+
+to_tbl <- function(file, measure="value", volumes = NULL){
+  value <- RNifti::readNifti(file, volumes = volumes)
+  to_tbl0(value, measure=measure)
+}
+
+d_var <- function(N, d){
+  h <- correct_d(N)
+  ((N - 1) * (1 + N * d^2) / (N * (N - 3)) - d^2 / h^2) * h^2
+}
+
+correct_d <- function(N){
+  # https://doi.org/10.1101/865881
+  # Han Bossier1∗, Thomas E. Nichols2 & Beatrijs Moerkerke1
+  exp((lgamma((N-1)/2)) - log(sqrt((N-1)/2)) - lgamma((N-2)/2))
+}
+
+fix_names <- function(d){
+  d |>
+    dplyr::mutate(
+      tstat = stringr::str_replace(.data$tstat, "_tstat1.nii.gz", "_glm_sigmasqr.nii.gz")
+    )
+}
+
+mask <- function(d, mask=MNITemplate::getMNIPath("Brain_Mask", "2mm")){
+  m <- to_tbl0(RNifti::readNifti(mask)) |>
+    dplyr::filter(value > 0)
+  dplyr::semi_join(d, m, by = c("x","y","z"))
+}
+
+```
+
+```{r}
+sigmacope_bias <- bind_rows(
+  `F - S` = targets::tar_read(sigmacope_bias, store=here::here("_tfce")),
+  `S` = targets::tar_read(sigmacope_bias, store=here::here("_tfce1")),
+  .id = "contrast"
+) |>
+  filter(n_sub < 50)
+
+d_bias <- bind_rows(
+  `F - S` = targets::tar_read(cor2, store=here::here("_tfce1")),
+  `S` = targets::tar_read(cor2, store=here::here("_tfce1")),
+  .id = "contrast"
+) |>
+  filter(n_sub < 50)
+
+```
+
+
+```{r, fig.cap = "Apparent Bias in Estimate of Cohen's d. Each point corresponds to 1 voxel. y-coordinate is estimate from individual simulations (100)."}
+d_bias |>
+  ggplot(aes(x=gold, y=m)) +
+  facet_grid(n_sub~contrast, labeller = label_both) +
+  geom_point(alpha = .02) +
+  geom_abline(intercept=0, slope=1) +
+  geom_smooth(method = "lm")
+```
+
+
+```{r,  fig.cap = "Estimates of COPE. Each point corresponds to 1 voxel. y-coordinate is estimate from individual simulations (100)."}
+sigmacope_bias |>
+  # filter(sigma_gold > 50) |>
+  # group_by(n_sub, contrast) |>
+  # slice_sample(n=100000) |>
+  ggplot(aes(x=sigma_gold, y=sigma)) +
+  facet_grid(n_sub~contrast, labeller = label_both) +
+  geom_point(alpha = .02) +
+  geom_abline(intercept=0, slope=1) +
+  geom_smooth(method = "lm")
+```
+
+
+```{r,  fig.cap = "Estimates of Standard Deviation. Each point corresponds to 1 voxel. y-coordinate is estimate from individual simulations (100)."}
+sigmacope_bias |>
+  # filter(cope_gold > 50) |>
+  # group_by(n_sub, contrast) |>
+  # slice_sample(n=100000) |>
+  ggplot(aes(x=cope_gold, y=cope)) +
+  facet_grid(n_sub~contrast, labeller = label_both, scales = "free") +
+  geom_point(alpha = .02) +
+  geom_abline(intercept=0, slope=1) +
+  geom_smooth(method = "lm")
+```
+
+
+```{r, fig.width=12, fig.height=8}
+library(stringr)
+at <- targets::tar_read(at, store = here::here("_tfce"))
+
+filter_space <- function(d, n_peaks, store="_tfce"){
+  d |>
+    # filter(between(z, 25, 70)) |>
+    # filter(`Cluster Index`==10) |>
+    filter(!is.na(x.study)) |>
+    group_nest() |>
+    mutate(top = map(data, ~distinct(.x, Value) |> slice_max(order_by=Value, n=.env$n_peaks))) |>
+    unnest(data) |>
+    mutate(keep = map2_lgl(Value, top, ~any(.x %in% .y$Value))) |>
+    filter(keep) |>
+    mutate(n_sub = factor(n_sub), group = interaction(x,y,z, lex.order = TRUE))
+}
+
+filtered_space <- filter_space(targets::tar_read(space, store=here::here("_tfce")), 9) |>
+  distinct(label) |>
+  filter(stringr::str_detect(label, "Amyg|Occipital Fusiform|Occipital Pole")) |>
+  mutate(
+    text = case_when(
+      label == "Temporal Occipital Fusiform Cortex" ~ "Temp. Occipital Fus.",
+      label == "Occipital Fusiform Gyrus" ~ "Occ. Fus. Gyr.",
+      str_detect(label, "Amyg")  ~ "Amygdala",
+      TRUE ~ "Occipital Pole"
+    ))
+
+targets::tar_load(pop_d, store=here::here("_tfce"))
+iters <- qs::qread(here::here("data-raw/iters.qs"))
+# targets::tar_load(iters, store=here::here("_tfce"))
+
+gold_meds <- pop_d |>
+  left_join(at) |>
+  right_join(filtered_space) |>
+  group_by(text) |>
+  summarise(gold = median(gold)) |>
+  mutate(
+    y = c(-.5, -.75, -1, -.25),
+    hjust = c("left", "right", "right", "left"))
+
+# not using -- not enough draws to estimate 90% bounds for low n_sub
+# theoretical <- iters |>
+#   select(gold, n_sub) |>
+#   mutate(
+#     q.05 = qt(.05, n_sub-1, gold*sqrt(n_sub))/sqrt(n_sub),
+#     q.50 = qt(.50, n_sub-1, gold*sqrt(n_sub))/sqrt(n_sub),
+#     q.95 = qt(.95, n_sub-1, gold*sqrt(n_sub))/sqrt(n_sub),
+#     src = "Assumption Based")
+
+sigs <- distinct(iters, n_sub) |>
+  crossing(p = c(0.01, 0.001)) |>
+  mutate(
+    lower = qt(p, n_sub-1) / sqrt(n_sub),
+    upper = qt(p, n_sub-1, lower.tail = FALSE) / sqrt(n_sub))
+
+iters |>
+  select(-s, average=q.50) |>
+  pivot_longer(cols = c(q.05, q.95, average), names_to = "stat") |>
+  mutate(quantile = if_else(stat=="average", "average", "90%")) |>
+  ggplot(aes(x=gold)) +
+  facet_wrap(~n_sub) +
+  geom_vline(
+    data = gold_meds,
+    aes(xintercept = gold),
+    alpha = 0.25) +
+  geom_text(
+    data = gold_meds,
+    aes(x = gold, y=y, label=text, hjust=hjust)
+  ) +
+  geom_hline(
+    data = sigs,
+    aes(yintercept = upper),
+    alpha = 0.25) +
+  geom_text(
+    data = mutate(
+      sigs, 
+      upper = if_else(p==0.01, upper-.1, upper+.1),
+      p = glue::glue("p = {p}")),
+    aes(y=upper, label = p),
+    x = -0.5) +
+  geom_abline(slope=1, intercept=0, alpha=0.5) +
+  geom_line(aes(y=value, linetype = quantile, group=stat)) +
+  scale_linetype_manual(
+    name = "Study Stat",
+    breaks = c("average", "90%"),
+    values = c("average"="dashed", "90%"="dotted")) +
+  xlab("Gold Standard d") +
+  ylab("Study d")
+```
+
+
+
+```{r}
+
+# iters |>
+#   select(-s, -q.50) |>
+#   pivot_longer(cols = c(q.05, q.95, average), names_to = "stat") |>
+#   mutate(quantile = if_else(stat=="q.50", "average", "90%")) |>
+#   ggplot(aes(x=gold)) +
+#   facet_wrap(~n_sub) +
+#   geom_hline(
+#     data = sigs,
+#     aes(yintercept = upper),
+#     alpha = 0.25) +
+#   geom_text(
+#     data = mutate(
+#       sigs, 
+#       upper = if_else(p==0.01, upper-.1, upper+.1),
+#       p = glue::glue("p = {p}")),
+#     aes(y=upper, label = p),
+#     x = -0.5) +
+#   geom_abline(slope=1, intercept=0, alpha=0.5) +
+#   geom_line(aes(y=value, linetype = quantile, group=stat)) +
+#   scale_linetype_manual(
+#     name = "Study Stat",
+#     breaks = c("average", "90%"),
+#     values = c("average"="dashed", "90%"="dotted")) +
+#   xlab("Gold Standard d") +
+#   ylab("Study d")
+```
+
+
+```{r, fig.width=10}
+
+# targets::tar_load(tfce_cor, store = here::here("_tfce"))
+# pop_d2 <- targets::tar_read(pop_d, store = here::here("_tfce")) |> 
+#   mutate(
+#     gold_cut = cut(
+#       gold, 
+#       include.lowest = TRUE,
+#       breaks = quantile(gold, seq(0, 1, by=.1)),
+#       labels = names(quantile(gold, seq(0, 1, by=.1)))[2:11] )) 
+# 
+# tmp <- tfce_cor |>
+#   select(iter, n_sub, d) |>
+#   unnest(d) |>
+#   mutate(n_sub = factor(n_sub)) |>
+#   left_join(pop_d2, by = c("x","y","z")) |>
+#   group_by(n_sub, gold_cut, iter) |>
+#   summarise(
+#     rho = cor(gold, value),
+#     .groups = "drop"
+#   )
+
+tmp <- qs::qread(here::here("data-raw/rho-quantile.qs"))
+
+tmp |>
+  ggplot(aes(x=n_sub)) +
+  geom_boxplot(
+    aes(y=rho, color=gold_cut),
+    outlier.alpha = 0.5) 
+
+```
+
