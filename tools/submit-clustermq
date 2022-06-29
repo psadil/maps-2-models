@@ -1,0 +1,5 @@
+#!/bin/bash
+
+#Rscript -e "targets::tar_make_clustermq(script='_tfce.R', workers = 35, store='_tfce')"
+# Rscript -e "targets::tar_make_future(script='_tfce.R', workers = 5, store='_tfce')"
+Rscript -e "targets::tar_make(poster, script='_tfce.R', store='_tfce')"

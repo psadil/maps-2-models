@@ -6,13 +6,14 @@ sample_ukb <- function(d, n, i){
       n = {{n}})
 }
 
-correlate <- function(d, y){
-  d |> 
+split_and_correlate <- function(d, n, i, y="fluid"){
+  sample_ukb(d=d, n=n, i=i) |> 
     dplyr::group_by(i, n) |>
     dplyr::summarise(
-      across(tidyselect::matches("[[:digit:]]+"), ~cor({{y}}, .x, method = "spearman")),
-      .groups = "drop") |>
-    dplyr::select(-{{y}})
+      dplyr::across(
+        tidyselect::matches("[[:digit:]]+"), 
+        ~cor({{y}}, .x, method = "spearman")),
+      .groups = "drop") 
 }
 
 
@@ -24,13 +25,6 @@ include_keys <- function(d, key){
       values_to = "correlation",
       names_transform = list(FieldID = as.integer)) |>
     dplyr::left_join(key, by = "FieldID")
-}
-
-load_lit <- function(fname){
-  readxl::read_excel(fname) |>
-    dplyr::filter(stringr::str_detect(type, "correlation")) |>
-    dplyr::select(-notes, -source, -location) |>
-    na.omit()
 }
 
 plot_rough <- function(d, lit){
@@ -95,4 +89,37 @@ plot_rough2 <- function(d, lit){
     ggplot2::ggtitle("correlation (Spearman's) with fluid intelligence") +
     ggplot2::theme(legend.position = "bottom") 
   return(p)
+}
+
+
+dr <- function(r, rho=0.175, n, log = TRUE){
+ 
+  tmp <- purrr::map2_dbl(r, n, ~BAS::hypergeometric2F1(1/2, 1/2, 1/2*(2*.y-1), 1/2*(rho*.x+1), log=TRUE))
+  
+  if(!log){
+    (n-2) * gamma(n-1) * (1 - rho^2)^((n-1)/2) * (1-r^2)^((n-4)/2) / 
+      (sqrt(2*pi)*gamma(n-1/2)*(1-rho*r)^(n-3/2)) * exp(tmp)
+    # BAS::hypergeometric2F1(1/2, 1/2, 1/2*(2*n-1), 1/2*(rho*r+1), log=FALSE)
+  }
+  (log(n-2) + lgamma(n-1) + log((1 - rho^2)^((n-1)/2)) + log((1-r^2)^((n-4)/2)) - 
+      (log(sqrt(2*pi)) + lgamma(n-1/2) + log((1-rho*r)^(n-3/2))) + tmp) |>
+    exp()
+  # BAS::hypergeometric2F1(1/2, 1/2, 1/2*(2*n-1), 1/2*(rho*r+1), log=TRUE)
+}
+
+get_cor_sampling_distr <- function(n_min=10, n_max=500, rho=0.175){
+  
+  tidyr::crossing(x = seq(-0.99, .99, length.out=1000), n = seq(n_min, n_max, length.out = 1000)) |>
+    dplyr::mutate(y = dr(x, rho=rho, n=n, log=FALSE)) |>
+    dplyr::filter(is.finite(y)) |>
+    na.omit() |>
+    dplyr::group_by(n) |>
+    dplyr::arrange(x) |>
+    dplyr::mutate(p = cumsum(y)/sum(y)) |>
+    dplyr::group_nest() |>
+    dplyr::mutate(
+      lower = purrr::map_dbl(data, ~max(.x[which.min(abs(0.025 - .x$p)),"x"])),
+      upper = purrr::map_dbl(data, ~max(.x[which.min(abs(0.975 - .x$p)),"x"]))) |>
+    dplyr::select(-data) |>
+    tidyr::pivot_longer(c(lower, upper))
 }

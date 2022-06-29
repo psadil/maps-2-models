@@ -1,0 +1,707 @@
+---
+title: "**Reliability of Effect Sizes and Spatial Localization with Population-Level Sample Sizes**"
+author: ["**Patrick Sadil**", "Martin Lindquist"]
+institute: "Department of Biostatistics, Johns Hopkins Bloomberg School of Public Health"
+date: "2022-05-19"
+output:
+  pagedown::poster_jacobs:
+    css: style.css
+    self_contained: true
+    pandoc_args: --mathjax
+    template: template.html
+bibliography: references.bib
+csl:  nature-neuroscience.csl
+---
+
+::: {.logo}
+<img src="bloomberg/shield/SVG/bloomberg.shield.white.svg" alt="Draft mode" />
+:::
+
+::: {.qr}
+<img src="qrcode.svg" alt="qr.svg" />
+:::
+
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(purrr)
+library(stringr)
+library(patchwork)
+library(ggtext)
+source(here::here("R","utils.R"))
+source(here::here("R","tfce.R"))
+source(here::here("R","updates.R"))
+source(here::here("R","poster.R"))
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  tidy = FALSE,
+  message = FALSE,
+  fig.align = 'center',
+  cache = TRUE,
+  # cache.rebuild = TRUE,
+  # out.width = "100%",
+  dev = "svglite")
+
+# regions <- "Amygdala|Occipital Pole"
+
+# also used in a few theme_void
+base_size <- 24
+theme_set(theme_gray(base_size = base_size, base_family = "sans-serif"))
+# update_geom_defaults("text", list(size = 24))
+
+# point_size <- 1
+```
+
+
+# Background 
+
+- Consortium studies allow assessment of analysis methods
+- Assessments have previously revealed that brain-wide association studies may require thousands of participants[@marek2022reproducible]
+- Goal: survey several effect types in MRI to help interpret small studies and calibrate expectations for large studies
+
+# Methods
+
+- Split UK Biobank[@alfaro2018image]: 8k gold standard, 10k study set
+- Sample from study set, varying sample size
+- Estimate statistics (brain-behavior correlation, cluster peak location, voxel-wise effect size)
+- Compare study set distributions to gold standard
+
+# Variability in effect size estimates accounted for by sampling
+
+```{r, fluid, fig.height=5.5, fig.width=12}
+
+targets::tar_load(ukb_cor)
+brainvolfluid <- targets::tar_read(brainvolfluid)
+
+lit <- targets::tar_read(lit) |>
+  filter(n>4)
+
+targets::tar_load(sampling_distr)
+
+brainvolfluid |> 
+  mutate(N = factor(n)) |>
+  ggplot2::ggplot(aes(y=n, x = correlation)) + 
+  geom_vline(xintercept = ukb_cor, color = "darkgoldenrod1", size=3) +
+  geom_boxplot(
+    aes(group=n),
+    outlier.shape = NA) +
+  geom_jitter(width = 0, alpha = 0.05) +
+  ggplot2::geom_point(
+    data = lit,
+    ggplot2::aes(x = value, y = n),
+    fill = "green", size=5,
+    color = "black",
+    # alpha = 0.3,
+    shape = 21) +
+  geom_line(
+    data = sampling_distr,
+    aes(x=value, y=n, group=name)) +
+  xlab("cor(Brain Volume, Fluid Intelligence)") + 
+  ylab("N Participants in Simulation,\nPublished Study") +
+  ggplot2::scale_y_log10(
+    labels = c(1, 10, 100, 1000),
+    breaks = c(1, 10, 100, 1000),
+    limits = c(5, 1000)) +
+  annotate(geom="point", fill="green", color="black", size=5, shape=21, x=-.85, y=800) +
+  annotate(geom = "text", x=-.8, y=800, label = "Published Correlation", hjust = "left", size=7) +
+  annotate(geom="point", size=5, x=-.85, y=500, alpha=0.5) +
+  annotate(geom="text", x=-.8, y=500, label = "Simulated Study Correlation", hjust = "left", size=7) +
+  annotate(geom="segment", x=-.85, xend=-.85, yend=250, y=350, color="darkgoldenrod1", size=7) +
+  annotate(geom="text", x=-.8, y=300, label = "Gold Standard Correlation", hjust = "left", size=7) +
+  annotate(geom="segment", x=-.85, xend=-.9, yend=100, y=200) +
+  annotate(geom="text", x=-.8, y=140, label = "Theoretical Sampling\nDistribution", hjust = "left", size=7) 
+
+```
+
+
+:::{.details}
+
+Figure shows reliability of estimated (rank) correlations between whole brain volume and fluid intelligence score. The gold standard correlation is `r round(ukb_cor, digits=2)`. For this value, the 2.5% and 97.5% quantiles of a sampling distribution are marked with solid lines. Black dots indicate estimates of this correlation from the simulated studies and are summarized with box plots. Green dots are from published studies and meta analyses. Although a range of correlations have been reported, the variability matches what would be expected from the sampling distribution.
+
+:::
+
+
+# Gold Standard Peaks
+
+:::{.floater style="float: left; width: 20%; font-size: 16pt;"}
+
+Voxel-wise effect sizes were measured with Cohen's $d$. In the gold standard, hey were calculated from the average, $\mu$, and standard deviation, $\sigma$, of the faces > shape contrast[@hariri2002amygdala]. In simulated studies, values were estimated with Hedge's correction, $C(N)$.
+
+
+$$
+\begin{align*}
+d &= \frac{\mu}{\sigma}  \\
+g &= \frac{\widehat{\mu}}{\widehat{\sigma}}C(N)
+\end{align*}
+$$
+
+For display, the figure shows only the 24 most active local peaks, sorted by (signed) effect size. 
+
+:::
+
+
+
+```{r, gold, fig.height=7, fig.width=8, out.width="80%", out.extra='style="float:right;"'}
+
+
+
+space <- targets::tar_read(space) |>
+  filter(str_detect(label, "Stem", negate = TRUE)) |>
+  filter_space(n_peaks=24) |>
+  mutate(
+    label = case_when(
+      label=="Temporal Occipital Fusiform Cortex" ~ "T Occ Fus C",
+      label=="Lateral Occipital Cortex, inferior division" ~ "L Occ C",
+      label=="Right Amygdala" ~ "Amygdala",
+      label=="Occipital Fusiform Gyrus" ~ "Occ Fus G",
+      label=="Left Amygdala" ~ "Amygdala",
+      label=="Occipital Pole" ~ "Occ Pole",
+      label=="Temporal Pole" ~ "T Pole",
+      label=="Right Thalamus" ~ "Thalamus",
+      label=="Precuneous Cortex" ~ "Precuneus",
+      label=="Middle Frontal Gyrus" ~ "M Front G",
+      label=="Lingual Gyrus" ~ "Ling G",
+      label=="Superior Temporal Gyrus, anterior division" ~ "ST G",
+      label=="Parahippocampal Gyrus, posterior division" ~ "Parahipp G",
+      label=="Supramarginal Gyrus, posterior division" ~ "SM G",
+      label=="Frontal Pole" ~ "Front Pole",
+      label=="Inferior Frontal Gyrus, pars opercularis" ~ "I Front G",
+      label=="Cuneal Cortex" ~ "Cuneus"
+    )
+  )
+
+zs <- distinct(space, z)$z
+
+targets::tar_load(tfce_pop)
+
+to_tbl(tfce_pop$tstat[[1]]) |>
+  mutate(value = value / sqrt(tfce_pop$n_sub[[1]])) |>
+  filter(z %in% zs, abs(value)>0.01) |>
+  mutate(a=abs(value)) |>
+  ggplot(aes(x=x, y=y)) +
+  coord_fixed(clip = "off") +
+  facet_wrap(~z, labeller=label_both) +
+  geom_raster(
+    aes(fill=value),
+    data = to_tbl(MNITemplate::getMNIPath(what="Brain", res = "2mm")) |> 
+      filter(z%in%zs), show.legend = FALSE) +
+  scale_fill_distiller(
+    type = "seq",
+    direction = -1,
+    palette = "Greys") +
+  ggnewscale::new_scale_fill() +
+  geom_raster(aes(alpha=a, fill=value)) +
+  # scale_fill_viridis_c(
+  #   option = "turbo", 
+  #   limits=c(-2, 2),
+  #   breaks = c(-1.5, 1.5),
+  #   labels = c(-1.5, 1.5)) +
+  scico::scale_fill_scico(
+    palette = "vik",
+    limits=c(-2, 2),
+    breaks = c(-1.5, 1.5),
+    labels = c(-1.5, 1.5)) +
+  scale_alpha_continuous(guide="none", range = c(0.5, 1)) +
+  geom_point(
+    shape = 4,
+    color="red", stroke=2,
+    data=distinct(space, x,y,z), 
+    size=4,
+    alpha=0.5) +
+  ggrepel::geom_label_repel(
+    aes(label=label), alpha=0.75,
+    data=distinct(space, x,y,z, label)
+  ) +
+  labs(fill = "Face > Shape\n(Cohen's d)") +
+  theme_void(base_size = 28) +
+  labs(caption = "<span style='color:red'>X</span> Local Peak") +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    legend.position = "bottom",
+    legend.spacing.x= unit(1.0, "in"),
+    legend.key.width = unit(0.5, 'in'),
+    plot.caption = ggtext::element_markdown(lineheight = 1.2)
+  )  
+
+
+```
+
+
+# Peak Localization in Simulations
+
+```{r, fig.height=7, fig.width=12}
+
+tmp0 <- targets::tar_read(space) |>
+  filter(str_detect(label, "Stem", negate = TRUE))|>
+  mutate(
+    hemi  = str_sub(hemi, 1, 1),
+    label_short = abbreviate(label),
+    label = case_when(
+      label=="Temporal Occipital Fusiform Cortex" ~ "Temp Occ Fus Cor",
+      label=="Lateral Occipital Cortex, inferior division" ~ "LOC",
+      label=="Right Amygdala" ~ "Amygdala",
+      label=="Occipital Fusiform Gyrus" ~ "Occ Fus Gyr",
+      label=="Left Amygdala" ~ "Amygdala",
+      label=="Occipital Pole" ~ "Occ Pole",
+      label=="Temporal Pole" ~ "Temp Pole",
+      label=="Right Thalamus" ~ "Thalamus",
+      label=="Precuneous Cortex" ~ "Precuneus",
+      label=="Middle Frontal Gyrus" ~ "Mid Front Gyr",
+      label=="Lingual Gyrus" ~ "Ling Gyr",
+      label=="Superior Temporal Gyrus, anterior division" ~ "Sup Temp Gyr",
+      label=="Parahippocampal Gyrus, posterior division" ~ "Parahipp Gyr",
+      label=="Supramarginal Gyrus, posterior division" ~ "SupMarg Gyr",
+      label=="Frontal Pole" ~ "Front Pole",
+      label=="Inferior Frontal Gyrus, pars opercularis" ~ "Inf Front Gyr",
+      label=="Cuneal Cortex" ~ "Cuneus"
+    ),
+    nm = glue::glue("{label}, {hemi}")) |>
+  filter_space(n_peaks=24) 
+
+tmp <- bind_rows(
+  semi_join(tmp0, distinct(tmp0, Value, nm) |> slice_max(order_by=Value, n=5)), 
+  semi_join(tmp0, distinct(tmp0, Value, nm) |> slice_min(order_by=Value, n=4))
+)
+
+
+s <- tmp |>
+  whoppeR::WISEsummary(
+    dependentvars = "d", betweenvars = "nsub", withinvars = c("nm")) 
+
+tmp |>
+  # filter(as.numeric(as.character(n_sub)) > 10) |> 
+  ggplot(aes(x=nsub, y=d)) +
+  facet_wrap(~nm, labeller = labeller(nm = label_wrap_gen(width = 25))) +
+  geom_hline(yintercept =0, color="darkgoldenrod1", size=1) +
+  geom_boxplot(outlier.alpha = 0.5) +
+  # geom_jitter(height = 0, alpha=0.5) +
+  # geom_text(
+  #   aes(label=round(d_mean)), 
+  #   y=100, 
+  #   data=s,
+  #   size = 5) +
+  ylab("dist(Gold Peak, Study Peak) (mm)") +
+  xlab("N Participants Simulated") +
+  theme(axis.title.y = element_text(margin = margin(0,32,0,0)))
+
+
+# 
+# space <- targets::tar_read(space, store=params$spatial_store) |>
+#   filter(stringr::str_detect(label, "Amyg|Occipital Pole")) |>
+#   group_nest(label, Value) |>
+#   group_by(label) |>
+#   slice_max(order_by = Value, n=1) |>
+#   unnest(data)
+# 
+# ref <- space |>
+#   group_by(label) |>
+#   summarise(x=mean(x), y=mean(y), z=mean(z)) |>
+#   mutate(z=if_else(stringr::str_detect(label, "Amyg"), 30, 42))
+# 
+# space1 <- space |>
+#   mutate(z=if_else(stringr::str_detect(label, "Amyg"), 30, 42))
+# 
+# b <- to_tbl(MNITemplate::getMNIPath(what="Brain", res = "2mm")) |>
+#   filter(z %in% c(30, 42)) |>
+#   ggplot(aes(x=x, y=y)) +
+#   coord_fixed() +
+#   facet_wrap(~z, labeller=label_both, ncol=1) +
+#   geom_raster(
+#     aes(fill=value), show.legend = FALSE, alpha=0.75) +
+#   scale_fill_distiller(
+#     type = "seq",
+#     direction = -1,
+#     palette = "Greys") +
+#   geom_point(
+#     aes(x=x.study, y=y.study, color=n_sub),
+#     shape=3,
+#     data=space1,
+#     alpha = 0.2,
+#     size=5, stroke=1
+#   ) +
+#   geom_point(
+#     aes(x=x, y=y),
+#     color = "red",
+#     size=4, shape=4, stroke=2,
+#     data = ref) +
+#   # ggnewscale::new_scale_color() +
+#   scale_color_viridis_c(option="inferno", trans="log10", direction = -1) +
+#   # scale_alpha_continuous(guide="none",range = c(0,1)) +
+#   # labs(fill='face > shape') +
+#   theme_void(base_size = 40) +
+#   theme(
+#     axis.title=element_blank(),
+#     axis.text = element_blank(),
+#     axis.ticks = element_blank(),
+#     legend.position = "none"
+#   )
+
+
+# a <- targets::tar_read(space, store="_tfce") |>
+#   filter(str_detect(label, regions)) |>
+#   plot_dist() +
+#   xlim(0,40) +
+#   theme_gray(base_size = 48) 
+# targets::tar_read(space, store="_tfce") |>
+#   filter(str_detect(label, regions), !is.na(x.study)) |>
+#   group_by(label, hemi) |>
+#   mutate(most_val = max(Value)) |>
+#   ungroup() |>
+#   filter(Value == most_val) |>
+#   mutate(n_sub=factor(n_sub)) |>
+#   ggplot(aes(x=n_sub, y=d)) + 
+#   facet_wrap(
+#     ~label, 
+#     labeller = ggplot2::label_wrap_gen(width = 20)) +
+#   geom_boxplot(outlier.shape = NA) +
+#   geom_jitter(height = 0, alpha=0.1) +
+# ylab("Distance From Ref (mm)") +
+# xlab("N Participants") +
+#   theme_gray(base_size = 48) 
+
+
+
+# x.study can be NA when there was no cluster found
+# targets::tar_read(space, store="_tfce") |>
+#   filter(str_detect(label, regions), !is.na(x.study)) |>
+#   group_by(label, hemi) |>
+#   mutate(most_val = max(Value)) |>
+#   ungroup() |>
+#   filter(Value == most_val) |>
+#   group_nest(n_sub, label, sign, hemi) |>
+#   mutate(
+#     n_sub = factor(n_sub),
+#     avg = map(
+#       data,
+#       ~as.vector(dist(cbind(.x$x.study,.x$y.study,.x$z.study))))) |>
+#   select(-data) |>
+#   unnest(avg) |> 
+#   na.omit() |>
+#   ggplot(aes(x=n_sub, y=avg)) + 
+#   facet_wrap(
+#     ~label, 
+#     labeller = ggplot2::label_wrap_gen(width = 20)) +
+#   geom_boxplot(outlier.shape = NA) +
+#   geom_jitter(height = 0, alpha=0.1) +
+#   ylab("Distance Between Studies (mm)") +
+#   xlab("N Participants") +
+#   theme_gray(base_size = 48) 
+
+# a / b + plot_layout(guides = "collect")
+
+```
+
+
+:::{.details}
+
+Study peaks were identified in unsmoothed, threshold-free cluster enhanced $t$-maps (FSL) after excluding voxels with $p > 0.05$ (permutation tests on the enhanced images, controlling for FWE). Panels corresponds to individual peaks in the gold standard (limited to 9 for display). Box plots summarize the distances from that peak to nearest peak in each simulated study. Voxels were 2 $mm^3$. 
+
+:::
+
+
+# Reliability of Voxel-Wise Effect Sizes
+
+```{r, cache.lazy = FALSE, cache=FALSE, cache.lazy = FALSE}
+targets::tar_load(iters)
+targets::tar_load(pop_d)
+```
+
+
+```{r, globalcor2, fig.height=7.5, fig.width=18, cache.lazy = FALSE}
+
+sigs <- iters |>
+  dplyr::distinct(n_sub) |>
+  tidyr::crossing(p = c(0.01, 0.001)) |>
+  dplyr::mutate(
+    lower = qt(p, n_sub-1) / sqrt(n_sub),
+    upper = qt(p, n_sub-1, lower.tail = FALSE) / sqrt(n_sub)) |>
+  dplyr::rename(`N Participants Simulated` = n_sub)
+
+filtered_space <- filter_space(targets::tar_read(space), 9) |>
+  dplyr::distinct(label) |>
+  dplyr::filter(stringr::str_detect(label, "Amyg|Occipital Fusiform Gyrus|Occipital Pole")) |>
+  dplyr::mutate(
+    text = dplyr::case_when(
+      label == "Occipital Fusiform Gyrus" ~ "Occ. Fus. Gyr.",
+      stringr::str_detect(label, "Amyg")  ~ "Amygdala",
+      TRUE ~ "Occipital Pole"
+    ))
+
+gold_meds <- pop_d |>
+  dplyr::left_join(targets::tar_read(at)) |>
+  dplyr::right_join(filtered_space) |>
+  dplyr::group_by(text) |>
+  dplyr::summarise(gold = median(gold)) 
+
+# targets::tar_load(tfce_cor, store = params$tfce_store)
+# a0 <- tfce_cor$d[[310]] |>
+#   slice_sample(prop=.01) |>
+#   left_join(gold0) |>
+#   ggplot(aes(x=gold, y=value)) +
+#   ggpointdensity::geom_pointdensity(show.legend = FALSE)  +
+#   scale_color_viridis_c(option="turbo", name=NULL) +
+#   # coord_fixed() +
+#   geom_abline() +
+#   geom_vline(
+#     xintercept=seq(min(gold0$gold), max(gold0$gold), length.out=11),
+#     alpha = 0.5) +
+#   scale_x_continuous(
+#     name = "Gold standard d",
+#     breaks = c(-1, 0, 1),
+#     labels = c(-1, 0, 1),
+#     limits = c(-1, 2)) +
+#   scale_y_continuous(
+#     name = bquote(paste(Study[i], " g")),
+#     breaks = c(-1, 0, 1),
+#     labels = c(-1, 0, 1),
+#     limits = c(-1.5, 2)) +
+#   theme(
+#     axis.ticks = element_blank(),
+#     axis.text.x = element_blank(),
+#     axis.text.y = element_blank(),
+#     axis.title.y = element_text(size = 12, margin = margin(r = -20)),
+#     axis.title.x = element_text(size = 12, margin = margin(t= -20)),
+#     plot.background = element_blank(),
+#     panel.grid = element_blank())
+# 
+# a1 <- a0 + theme(axis.title.x = element_blank(), axis.title.y = element_blank())
+
+# NOTE: reference lines not drawn because they are confusing with the density:
+# really, the true sampling density is 2d and includes the density of the
+# gold standard. draw_line draws the conditional sampling density, p(g|d), 
+# rather than the 2d, p(g,d). here's we're more interested in the "Saturn"
+# shape, large sphere with rings
+# draw_line <- function(N,q, lower=min(big$gold), upper=max(big$gold)){
+#   d <- tibble::tibble(`N Participants Simulated`=N, gold=seq(lower, upper, length.out=10))
+#   ggplot2::geom_function(
+#     data = d,
+#     fun = ~qt(q, N-1, .x*sqrt(N))/sqrt(N), linetype="dashed")
+# }
+
+targets::tar_read(big) |>
+  # dplyr::filter(n_sub==10) |>
+  dplyr::rename(`N Participants Simulated` = n_sub) |>
+  ggplot2::ggplot(ggplot2::aes(x=gold)) +
+  ggplot2::facet_wrap(~`N Participants Simulated`, labeller = ggplot2::label_both) +
+  scattermore::geom_scattermore(aes(y=value, color=dens/max(dens), alpha=dens)) +
+  # geom_point(aes(y=value), alpha=0.1) +
+  # stat_density_2d(
+  # geom = "raster",
+  # aes(y=value, fill = after_stat(ndensity)),
+  # contour = FALSE) +
+  # ggplot2::geom_density_2d_filled(
+  #   ggplot2::aes(y=value), 
+  #   breaks = c(.01, seq(.1, 1, by=.1)),
+  #   contour_var = "ndensity") +
+  # ggpointdensity::geom_pointdensity(
+  #   ggplot2::aes(y=value), 
+#   show.legend = FALSE, 
+#   adjust = 0.01) +
+ggplot2::scale_color_viridis_c(
+  option="turbo", 
+  name="Voxel\nDensity",
+  labels = c(0,1),
+  breaks = c(0,1),
+  limits=c(0,1)) +
+  guides(alpha = "none") + 
+  ggnewscale::new_scale_color() +
+  # draw_line(10, 0.95) +
+  # draw_line(10, 0.05) +
+  # draw_line(20, 0.95) +
+  # draw_line(20, 0.05) +
+  # draw_line(50, 0.95) +
+  # draw_line(50, 0.05) +
+  # draw_line(100, 0.95) +
+  # draw_line(100, 0.05) +
+  # draw_line(200, 0.95) +
+  # draw_line(200, 0.05) +
+  # draw_line(500, 0.95) +
+# draw_line(500, 0.05) +
+ggplot2::geom_vline(
+  data = gold_meds,
+  ggplot2::aes(xintercept = gold, color=text),
+  size = 2) +
+  ggplot2::scale_color_viridis_d(option="turbo", name="ROI", begin=0.1) +
+  ggplot2::geom_hline(
+    data = sigs,
+    ggplot2::aes(yintercept = upper),
+    alpha = 0.25,
+    size = 1) +
+  ggplot2::geom_text(
+    data = dplyr::mutate(
+      sigs,
+      upper = dplyr::if_else(p==0.01, upper-.2, upper+.2),
+      p = glue::glue("p = {p}")),
+    ggplot2::aes(y=upper, label = p), x = -1, size = 5, hjust="left") +
+  ggplot2::geom_abline(color="darkgoldenrod1") +
+  ggplot2::scale_x_continuous(
+    name = "Gold Standard Effect Size (d)",
+    breaks = c(-1, 0, 1),
+    labels = c(-1, 0, 1),
+    limits = c(-1, 2)) +
+  ggplot2::scale_y_continuous(
+    name = "Study Effect Size (g)",
+    breaks = c(-2, 0, 2),
+    labels = c(-2, 0, 2),
+    limits = c(-2, 2)) +
+  ggplot2::theme(
+    legend.position = "bottom",
+    # legend.box = "vertical",
+    legend.justification = "left",
+    legend.key.size = ggplot2::unit(0.3, "in"),
+    legend.spacing.x = ggplot2::unit(0.3, "in"),
+    legend.text = element_text(size = 18),
+    # legend.spacing.y = unit(-0.25, "in"),
+    legend.background = element_rect(fill = "transparent"),
+    # legend.box.spacing = unit(-0.1, "in"),
+    # plot.margin = unit(c(4, 4, 4, 4), "pt")
+  )
+
+```
+
+
+:::{.details}
+
+Points correspond to individual voxels in simulated studies (effect size in the gold standard by estimated effect in simulation). Color indicates degree of overplotting, normalized to one across panels. For reference, panels include a diagonal line indicating perfect estimation (gold), statistical significance thresholds (gray horizontal lines), and the average effect size of voxels within three (bilateral) regions of interest (colored vertical lines). The vertical axis is clipped at $\pm$ 2.
+
+:::
+
+
+# Correlations vary across deciles of effect size
+
+```{r, globalcor, fig.height=6.75, fig.width=18,cache.lazy = FALSE}
+
+a0 <- targets::tar_read(sample_study) |>
+  ggplot(aes(x=gold, y=value)) +
+  scattermore::geom_scattermore(alpha = 0.1) +
+  # ggpointdensity::geom_pointdensity(show.legend = FALSE, adjust=0.01)  +
+  scale_color_viridis_c(option="turbo", name=NULL) +
+  # coord_fixed() +
+  geom_abline() +
+  geom_vline(
+    xintercept=quantile(pop_d$gold, seq(0,1,length.out=11)),
+    alpha = 0.5) +
+  scale_x_continuous(
+    name = "Gold standard d",
+    breaks = c(-1, 0, 1),
+    labels = c(-1, 0, 1),
+    limits = c(-1, 2)) +
+  scale_y_continuous(
+    name = bquote(paste(Study[i], " g")),
+    breaks = c(-1, 0, 1),
+    labels = c(-1, 0, 1),
+    limits = c(-1.5, 2)) +
+  theme(
+    axis.ticks = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.title.y = element_text(size = 12, margin = margin(r = -20)),
+    axis.title.x = element_text(size = 12, margin = margin(t= -20)),
+    plot.background = element_blank(),
+    panel.grid = element_blank())
+
+a1 <- a0 + theme(axis.title.x = element_blank(), axis.title.y = element_blank())
+
+b <- iters |>
+  ggplot(aes(x=factor(n_sub))) +
+  geom_hline(yintercept=1, color="darkgoldenrod1", size=1) +
+  geom_boxplot(
+    aes(y=rhos, color=gold_cut),
+    outlier.alpha = 0.5) +
+  ylab("cor(Gold standard d, Study g)") +
+  xlab("N Participants Simulated") +
+  labs(color = "Gold standard d\n Decile") +
+  # scale_color_viridis_d(option="turbo") +
+  scico::scale_color_scico_d(palette = "vik") +
+  theme(
+    legend.key.size = unit(0.5, "in"),
+    legend.spacing.y = unit(0.25, "in"),
+    # legend.key = element_rect(color = NA, fill = NA),
+    legend.title.align = 0.5
+  )
+
+a1 + a1 + a1 + (a0+ggtitle("Bin By Decile")) + b +
+  patchwork::plot_layout(
+    design=c(
+      area(t = 4, l = 4, b = 7, r = 8),
+      area(t = 3, l = 3, b = 6, r = 7),
+      area(t = 2, l = 2, b = 5, r = 6),
+      area(t = 1, l = 1, b = 4, r = 5),
+      area(t = 1, l = 9, b = 8, r = 50)
+    )) 
+
+```
+
+:::{.details}
+
+Voxels in simulated studies were grouped by decile of effect size in gold standard (left). Within deciles and for each study, correlations with the gold standard effect sizes were calculated and summarized (right, box plots). 
+
+:::
+
+
+# Estimates most variable in regions with larger effects
+
+```{r, fig.height=8, fig.width=15, out.extra='style="float:left; width: 80%;"'}
+
+center <- targets::tar_read(center)  |>
+  filter(z %in% c(30, 35, 40, 45)) |>
+  mutate(N = n_sub)
+
+center |>
+  ggplot(aes(x=x, y=y)) +
+  coord_fixed() +
+  facet_grid(z~N, labeller = label_both) +
+  geom_raster(
+    aes(fill=value),
+    data = to_tbl(MNITemplate::getMNIPath(what="Brain", res = "2mm")) |> 
+      filter(z%in%unique(center$z)), show.legend = FALSE) +
+  scale_fill_distiller(
+    type = "seq",
+    direction = -1,
+    palette = "Greys") +
+  ggnewscale::new_scale_fill() +
+  geom_raster(aes(fill=s), alpha = 0.5) +
+  scale_fill_viridis_c(option="turbo") +
+  scale_alpha_continuous(guide="none",range = c(0.3,1)) +
+  labs(fill="sd(Study g)") +
+  theme_void(base_size = 32) +
+  theme(
+    axis.title=element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    legend.position = "bottom",
+    legend.title.align = 1,
+    legend.title = element_text(size = 24),
+    legend.text = element_text(size=18),
+    legend.key.width = unit(1, 'in')
+  )
+
+
+# a + b + plot_layout(widths = c(5, 1))
+
+```
+
+:::{.floater style="float: right; width: 20%;"}
+
+Slices show variability in the estimated effect size across simulated studies, with columns distinguishing study size. Note that increased variability with higher effect size would be predicted by sampling distribution.
+
+:::
+
+
+# References
+
+<div id="refs"></div>
+
+
+# Discussion
+
+- Studies with thousands of participants provide reliable estimates of several kinds of effects
+- For effects like correlation between brain volume and fluid intelligence, variability in published values can be accounted for by sampling
+- Peak location and voxel-wise effect size maps[@botvinik2020variability] can be estimated precisely with hundreds of participants
+
+

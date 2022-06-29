@@ -26,6 +26,32 @@ fsl_merge_long <- function(infiles, output=tempfile(fileext = ".nii.gz")){
   output
 }
 
+do_tfcebias <- function(
+    cope_files, 
+    n_sub, 
+    iter, 
+    output, 
+    n = 1000, 
+    mask = MNITemplate::getMNIPath("Brain_Mask", "2mm"),
+    storage_dir = here::here("data-raw","niis")){
+  
+  # bootstrap samples involve replacement!
+  copes <- cope_files
+  merged <- fsl_merge_long(copes)
+  
+  filestem <- fs::path(storage_dir, glue::glue("nsub-{n_sub}_iter-{iter}"))
+  out <- fsl_randomise(merged, filestem, "-1", "-T", "-n", n, "-m", mask, "-R", "--uncorrp", "--glm_output")
+  tibble::tibble(
+    tfce_corrp_tstat = out[stringr::str_detect(out, "tfce_corrp_tstat")],
+    tfce_p_tstat = out[stringr::str_detect(out, "tfce_p_tstat")],
+    tfce_tstat = out[stringr::str_detect(out, "tfce_tstat")],
+    tstat = fs::path(filestem, "_tstat1.nii.gz"),
+    iter = iter,
+    n_sub = n_sub
+  )
+}
+
+
 # 
 do_tfce <- function(
     cope_files, 
@@ -141,18 +167,22 @@ fix_names <- function(d){
 
 do_cor <- function(studies, ref){
   checkmate::assert_data_frame(ref, nrows = 1)
-  ref_nii <- RNifti::readNifti(ref$tstat[[1]]) / sqrt(ref$n_sub[[1]]) * correct_d(ref$n_sub[[1]])
+  ref_nii <- to_tbl(ref$tstat[[1]], measure = "gold") |>
+    mask() |>
+    dplyr::mutate(gold = gold / sqrt(ref$n_sub[[1]]) * correct_d(ref$n_sub[[1]] ) ) 
   studies |>
     fix_names() |>
     dplyr::mutate(
-      rho = purrr::map2_dbl(
-        .data$tstat, .data$n_sub,
-        ~cor((RNifti::readNifti(.x) / sqrt(.y)) * correct_d(.y), .env$ref_nii)
-      ),
       d = purrr::map2(
         .data$tstat, .data$n_sub,
         ~to_tbl0(RNifti::readNifti(.x) / sqrt(.y) * correct_d(.y)) |>
           mask()
+      ),
+      rho = purrr::map_dbl(
+        .data$d,
+        ~dplyr::left_join(.x, .env$ref_nii, by = c("x", "y", "z")) |> 
+          dplyr::summarise(rho=cor(value, gold)) |> 
+          magrittr::use_series(rho)
       )
     )
 }
@@ -194,16 +224,16 @@ get_center <- function(study, ref){
     dplyr::select(iter, n_sub, rho, d) |>
     dplyr::mutate(nsub=factor(n_sub)) 
   
-  m <- to_tbl(MNITemplate::getMNIPath("Brain_Mask", res = "2mm")) |>
-    dplyr::filter(value > 0)
-  
   b <- d |>
     dplyr::select(-rho) |>
     tidyr::unnest(d) |>
-    dplyr::semi_join(m, by=c("x","y","z")) |>
+    mask() |>
     dplyr::filter(dplyr::between(z, 20, 70), z%%5==0) |>
     dplyr::group_by(n_sub, x, y, z) |>
-    dplyr::summarise(m = mean(value), .groups="drop") |>
+    dplyr::summarise(
+      m = mean(value),
+      s = sd(value),
+      .groups="drop") |>
     dplyr::left_join(
       to_tbl(fs::path_rel(ref$tstat[[1]], "/home/ubuntu/mnt/meta/meta"), measure="gold") |>
         dplyr::mutate(gold = gold / sqrt(ref$n_sub[[1]]))) |>
@@ -256,7 +286,12 @@ make_pop_d <- function(tfce_pop){
     mask() |> 
     dplyr::mutate(
       gold = gold / sqrt(tfce_pop$n_sub[[1]]) * correct_d(tfce_pop$n_sub[[1]]),
-      gold_cut = cut(gold, breaks=100))  
+      gold_cut = cut(
+        gold, 
+        include.lowest = TRUE,
+        breaks=quantile(gold, seq(0, 1, by=.1)),
+        glue::glue(
+          "({round(quantile(gold, seq(0, 1, by=.1))[1:10],2)}, {round(quantile(gold, seq(0, 1, by=.1))[2:11], 2)}]")))  
 }
 
 
@@ -272,42 +307,11 @@ make_iters <- function(tfce_cor, pop_d){
       N = dplyr::n(),
       q.05 = quantile(value, 0.05),
       q.50 = median(value),
-      avgerage = mean(value),
+      average = mean(value),
       q.95 = quantile(value, 0.95),
-      gold = mean(gold),
-      .groups = "drop") |>
-    dplyr::group_by(gold_cut, n_sub) |>
-    dplyr::summarise(
-      s = median(s),
-      N = median(N),
-      avgerage = mean(average),
-      q.05 = median(q.05),
-      q.50 = median(q.50),
-      q.95 = median(q.95),
-      gold = median(gold),
-      .groups = "drop")
-}
-
-
-make_rho_quantiles <- function(tfce_cor, pop_d){
-  pop_d2 <- pop_d |>
-    dplyr::mutate(
-      gold_cut = cut(
-        gold,
-        include.lowest = TRUE,
-        breaks = quantile(gold, seq(0, 1, by=.1)),
-        labels = glue::glue(
-          "({names(quantile(gold, seq(0, 1, by=.1)))[1:10]}, {names(quantile(gold, seq(0, 1, by=.1)))[2:11]}]" )))
-  
-  tfce_cor |>
-    dplyr::select(iter, n_sub, d) |>
-    tidyr::unnest(d) |>
-    dplyr::mutate(n_sub = factor(n_sub)) |>
-    dplyr::left_join(pop_d2, by = c("x","y","z")) |>
-    dplyr::group_by(n_sub, gold_cut, iter) |>
-    dplyr::summarise(
       rho = cor(gold, value),
-      .groups = "drop"
-    )
-  
+      rhos = cor(gold, value, method = "spearman"),
+      gold = mean(gold),
+      .groups = "drop") 
 }
+

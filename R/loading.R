@@ -18,6 +18,12 @@
 #   
 # }
 
+load_lit <- function(fname){
+  readxl::read_excel(here::here("data-raw", "lit-review.xlsx")) |>
+    dplyr::filter(FieldID == 25010) |>
+    dplyr::filter(n < 7000)
+}
+
 load_key <- function(fname){
   readr::read_csv(
     fname,
@@ -107,3 +113,20 @@ load_tab_narrow <- function(fname, key, n_max=Inf){
     na.omit()
 }
 
+load_ukb_parquet_for_corsplit <- function(f){
+  arrow::read_parquet(f, as_data_frame=FALSE) |> 
+    dplyr::select(
+      f.eid, 
+      tidyselect::starts_with("f.20016"), 
+      f.25010.2.0) |> 
+    dplyr::filter(!is.na(f.25010.2.0)) |> 
+    dplyr::as_tibble() |>
+    dplyr::rowwise() |> 
+    dplyr::mutate(
+      fluid = mean(
+        dplyr::c_across(tidyselect::starts_with("f.20016")), 
+        na.rm=TRUE)) |>
+    dplyr::ungroup() |>
+    dplyr::select(f.eid, `25010`=f.25010.2.0, fluid) |>
+    dplyr::filter(!is.na(fluid))
+}
