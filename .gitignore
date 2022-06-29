@@ -24,5 +24,8 @@ _ale/objects
 *html
 *qs
 *svg
+analyses/ohbm2022/bloomberg
+!analyses/ohbm2022/bloomberg/shield/SVG/bloomberg.shield.white.svg
+!analyses/ohbm2022/qrcode.svg
 *parquet
 *nii.gz
