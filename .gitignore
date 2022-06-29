@@ -18,3 +18,11 @@ data-raw/T1
 _ale/objects
 
 .ipynb_checkpoints
+
+*_cache
+*_files
+*html
+*qs
+*svg
+*parquet
+*nii.gz
