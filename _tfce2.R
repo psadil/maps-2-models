@@ -1,4 +1,4 @@
-Sys.setenv(TAR_PROJECT = "tfce0")
+Sys.setenv(TAR_PROJECT = "tfce2")
 
 library(targets)
 library(tarchetypes)
@@ -7,10 +7,13 @@ library(rlang)
 source(here::here("R", "ale.R"))
 source(here::here("R", "spatial.R"))
 source(here::here("R", "tfce.R"))
+source(here::here("R", "utils.R"))
+source(here::here("R", "loading.R"))
+source(here::here("R", "poster.R"))
 
 Sys.setenv(
-  NIIDIR = here::here("data-raw","niis"),
-  AVAIL = here::here("data-raw", "copes")) # explicitly avoiding tracking this
+  NIIDIR = here::here("data-raw","niis2"),
+  AVAIL = here::here("data-raw", "cope2s")) # explicitly avoiding tracking this
 
 #options(clustermq.scheduler = "multiprocess")
 
@@ -27,8 +30,8 @@ list(
   tar_target(
     test,
     readr::read_lines(Sys.getenv("AVAIL"), skip=10000)),
-  tar_target(n_sub, c(10)),
-  tar_target(iter, seq_len(500)),
+  tar_target(n_sub, c(10, 20, 50, 100, 200, 500)),
+  tar_target(iter, seq_len(100)),
   tar_target(
     tfce,
     do_tfce(train, n_sub=n_sub, iter=iter, n=1000, storage_dir=Sys.getenv("NIIDIR")),
@@ -58,7 +61,7 @@ list(
         ~get_tfce_maxes_pop(tstat=.x, cluster_thresh=0.001, minextent=0)))
   ),
   tar_target(
-    space,
+    space0,
     maxes |>
       dplyr::mutate(
         augmented = purrr::map(
@@ -72,8 +75,12 @@ list(
       dplyr::select(n_sub, augmented, iter, corrp_thresh) |>
       tidyr::unnest(augmented)
   ),
+  tar_target(at, make_atlas_full()),
+  tar_target(space, add_labels(space=space0, at=at)),
   tar_target(cor2, get_cor2(tfce_cor, tfce_pop)),
   tar_target(center, get_center(tfce_cor, tfce_pop)),
-  tar_target(at, make_atlas_full()),
-  tar_target(sigmacope_bias, make_sigmacope_bias_tbl(tfce_cor, tfce_pop))
+  tar_target(sigmacope_bias, make_sigmacope_bias_tbl(tfce_cor, tfce_pop)),
+  tar_target(pop_d, make_pop_d(tfce_pop)),
+  tar_target(iters, make_iters(tfce_cor, pop_d)),
+  tar_target(big, make_big(tfce_cor, pop_d, prop=1), format = "parquet")
 )

@@ -105,7 +105,6 @@ get_tfce_maxes <- function(
     corrp_thresh = 0.95, 
     cluster_thresh = 0.0001, 
     mask=MNITemplate::getMNIPath("Brain_Mask", "2mm"), 
-    at=make_atlas_full(),
     minextent = 0){
   
   # by definition, won't see negative values when working with tfce
@@ -127,8 +126,7 @@ get_tfce_maxes <- function(
     col_types = "idiii") |>
     dplyr::mutate(x=x+1,y=y+1,z=z+1) |>
     dplyr::mutate(sign = "positive") |>
-    dplyr::left_join(get_sizes(cls1), by = "Cluster Index") |>
-    dplyr::left_join(at, by = c("x","y","z"))
+    dplyr::left_join(get_sizes(cls1), by = "Cluster Index") 
 }
 
 
@@ -136,7 +134,6 @@ get_tfce_maxes_pop <- function(
     tstat,
     cluster_thresh = 0.0001, 
     mask=MNITemplate::getMNIPath("Brain_Mask", "2mm"), 
-    at=make_atlas_full(),
     minextent = 0){
   
   # by definition, won't see negative values when working with tfce
@@ -153,8 +150,7 @@ get_tfce_maxes_pop <- function(
     col_types = "idiii") |>
     dplyr::mutate(x=x+1,y=y+1,z=z+1) |>
     dplyr::mutate(sign = "positive") |>
-    dplyr::left_join(get_sizes(cls1), by = "Cluster Index") |>
-    dplyr::left_join(at, by = c("x","y","z"))
+    dplyr::left_join(get_sizes(cls1), by = "Cluster Index")
 }
 
 

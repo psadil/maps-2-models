@@ -7,6 +7,9 @@ tfce:
 tfce1:
   store: _tfce1
   script: _tfce1.R
+tfce2:
+  store: _tfce2
+  script: _tfce2.R
 bias:
   store: _bias
   script: _tfcebias.R

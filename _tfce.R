@@ -41,7 +41,7 @@ list(
     tfce_pop,
     do_tfce_pop(test, n_sub=length(test), iter=0, storage_dir=Sys.getenv("NIIDIR"))),
   tar_target(tfce_cor, do_cor(tfce, tfce_pop)),
-  tar_target(corrp_thresh, c(0.95)),
+  tar_target(corrp_thresh, c(0.1, 0.5, 0.95)),
   tar_target(
     maxes,
     dplyr::mutate(
@@ -61,7 +61,7 @@ list(
         ~get_tfce_maxes_pop(tstat=.x, cluster_thresh=0.001, minextent=0)))
   ),
   tar_target(
-    space,
+    space0,
     maxes |>
       dplyr::mutate(
         augmented = purrr::map(
@@ -75,9 +75,10 @@ list(
       dplyr::select(n_sub, augmented, iter, corrp_thresh) |>
       tidyr::unnest(augmented)
   ),
+  tar_target(at, make_atlas_full()),
+  tar_target(space, add_labels(space=space0, at=at)),
   tar_target(cor2, get_cor2(tfce_cor, tfce_pop)),
   tar_target(center, get_center(tfce_cor, tfce_pop)),
-  tar_target(at, make_atlas_full()),
   tar_target(sigmacope_bias, make_sigmacope_bias_tbl(tfce_cor, tfce_pop)),
   tar_target(pop_d, make_pop_d(tfce_pop)),
   tar_target(iters, make_iters(tfce_cor, pop_d)),

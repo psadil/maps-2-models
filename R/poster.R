@@ -6,7 +6,7 @@ filter_space <- function(d, n_peaks){
     dplyr::filter(!is.na(x.study)) |>
     dplyr::group_nest() |>
     dplyr::mutate(
-      # first take the top from each region
+      # first take the top from each region (could also consider closest from each region)
       top = purrr::map(
         data, 
         ~dplyr::distinct(.x, Value, x, y, z, label, hemi) |> 
@@ -18,11 +18,11 @@ filter_space <- function(d, n_peaks){
       # then the top n_peaks
       top = purrr::map(
         data, 
-        ~dplyr::distinct(.x, Value, x, y, z) |> 
+        ~dplyr::distinct(.x, Value, x, y, z, corrp_thresh) |> 
           dplyr::slice_max(order_by=Value, n=.env$n_peaks)),
       data = purrr::map2(
         data, top, 
-        ~dplyr::semi_join(.x, .y, by = c("x","y","z","Value")))) |>
+        ~dplyr::semi_join(.x, .y, by = c("x","y","z","Value", "corrp_thresh")))) |>
     dplyr::select(-top) |>
     tidyr::unnest(data) |>
     dplyr::mutate(

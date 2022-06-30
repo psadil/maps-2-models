@@ -20,27 +20,48 @@ make_atlas <- function(labelxml, nii){
 
 
 make_atlas_full <- function(){
-  cortical <- make_atlas(
-    fs::path(fslr::fsldir(), "data/atlases/HarvardOxford-Cortical.xml"),
-    fs::path(fslr::fsldir(), "data/atlases/HarvardOxford/HarvardOxford-cort-maxprob-thr0-2mm.nii.gz"))
+  # cortical labels for Schaefer2018_400Parcels_17Networks_order.lut
+  # subcortical from harvard-oxford
   
-  subcortical <- make_atlas(
-    fs::path(fslr::fsldir(), "data/atlases/HarvardOxford-Subcortical.xml"),
-    fs::path(fslr::fsldir(), "data/atlases/HarvardOxford/HarvardOxford-sub-maxprob-thr0-2mm.nii.gz"))
-
-  dplyr::full_join(cortical, subcortical, by = c("x", "y", "z"), suffix = c(".cortex",".subcortex")) |>
+  # always remove all brain-setm/white matter/cortex from subcortical, and always 
+  # defer to cortical when available
+  c_labels <- readr::read_delim(
+    here::here(
+      "data-raw", "Parcellations","MNI", "fsleyes_lut", 
+      "Schaefer2018_400Parcels_17Networks_order.lut"
+    ), 
+    col_names = c("index", "R","G","B","label")) |>
+    dplyr::select(index, label) |>
     dplyr::mutate(
-      label = dplyr::case_when(
-        is.na(label.cortex) & !is.na(label.subcortex) ~ label.subcortex,
-        is.na(label.subcortex) & !is.na(label.cortex) ~ label.cortex,
-        stringr::str_detect(label.subcortex, "Cerebral White") & !is.na(label.cortex)  ~ label.cortex,
-        stringr::str_detect(label.subcortex, "Cerebral Cortex") & !is.na(label.cortex) ~ label.cortex,
-        stringr::str_detect(label.subcortex, "Brain-Stem") & !is.na(label.cortex) ~ label.cortex,
-        !is.na(label.subcortex) & !is.na(label.cortex) ~ label.subcortex,
-        TRUE ~ NA_character_),
+      `Label Name` = stringr::str_remove(label, "_[[:digit:]]+$")
+    ) |>
+    dplyr::left_join(
+      readr::read_csv(
+        here::here(
+          "data-raw", "1000subjects_reference", "Yeo_JNeurophysiol11_SplitLabels", 
+          "Yeo2011_17networks_N1000.split_components.glossary.csv")
+      ), 
+      by = "Label Name") 
+  
+  cortical <- to_tbl(
+    here::here(
+      "data-raw", "Parcellations", "MNI", "Schaefer2018_400Parcels_17Networks_order_FSLMNI152_2mm.nii.gz"), 
+    "index"
+    ) |>
+    dplyr::filter(index > 0) |>
+    dplyr::left_join(c_labels, by = "index")
+  
+  subcortical <- subcortical <- make_atlas(
+    fs::path(fslr::fsldir(), "data/atlases/HarvardOxford-Subcortical.xml"),
+    fs::path(fslr::fsldir(), "data/atlases/HarvardOxford/HarvardOxford-sub-maxprob-thr0-2mm.nii.gz")) |>
+    dplyr::filter(stringr::str_detect(label, "Brain-Stem|Cortex|Matter|Ventricle", negate = TRUE)) |>
+    dplyr::mutate(label = stringr::str_remove(label, "Left |Right ")) |>
+    dplyr::anti_join(cortical, by = c("x", "y", "z")) # take only voxels not otherwise accounted for
+  
+  dplyr::bind_rows(cortical, subcortical) |>
+    dplyr::mutate(
       hemi = dplyr::if_else(x > 45, "Left", "Right")) |>
-    # if_else(is.na(label.subcortex), label.cortex, label.subcortex)) |>
-    dplyr::select(-label.cortex, -label.subcortex, -starts_with("index")) |>
+    dplyr::select(-index) |>
     dplyr::group_by(label, hemi) |>
     dplyr::mutate(
       n_voxels = dplyr::n(),
@@ -103,16 +124,16 @@ augment_distance <- function(study, reference){
   # happens when no peaks were found in study
   if(nrow(study)==0) return(reference)
   reference |>
-    dplyr::filter(!is.na(.data$label)) |>
     dplyr::rowwise() |>
     dplyr::mutate(study_ind = which.min(sqrt((x - study$x)^2 + (y - study$y)^2 +(z - study$z)^2 ))) |>
     dplyr::ungroup() |>
     dplyr::mutate(
-      label.study = study$label[study_ind],
-      volume.study = study$volume[study_ind],
       x.study = study$x[study_ind],
       y.study = study$y[study_ind],
       z.study = study$z[study_ind],
       d = 2*sqrt((x - x.study)^2 + (y - y.study)^2 +(z - z.study)^2 )) 
 }
 
+add_labels <- function(space, at = make_atlas_full()){
+  dplyr::left_join(space, at, by = c("x", "y", "z"))
+}

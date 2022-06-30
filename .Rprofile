@@ -1,7 +1,7 @@
 #Sys.setenv(TMPDIR="/home/ubuntu/mnt/tmp")
-#Sys.setenv(MAKEFLAGS = "-j2")
+Sys.setenv(MAKEFLAGS = "-j4")
 source("renv/activate.R")
-renv::settings$use.cache(FALSE)
+renv::settings$use.cache(TRUE)
 options("readr.num_threads" = 1)
 
 # options(renv.config.pak.enabled=TRUE)

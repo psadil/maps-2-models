@@ -1,0 +1,172 @@
+---
+title: ""
+output: bookdown::html_document2
+date: '2022-06-30'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, error = FALSE, fig.width = 10)
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(purrr)
+library(stringr)
+library(patchwork)
+library(forcats)
+source(here::here("R","utils.R"))
+source(here::here("R","tfce.R"))
+source(here::here("R","updates.R"))
+source(here::here("R","poster.R"))
+
+n_pop <- targets::tar_read(tfce_pop, store=here::here("_tfce"))$n_sub
+
+load_space <- function(store=here::here("_tfce")){
+  targets::tar_read(space, store = store) |>
+    filter(!is.na(label)) |>
+    mutate(corrp_thresh = factor(corrp_thresh)) |>
+    filter_space(n_peaks=100) |>
+    rename(Network = `Network Name`) |>
+    mutate(
+      Value = Value / sqrt(n_pop),
+      label = if_else(
+        is.na(`Network`), 
+        label, 
+        str_extract(label, "(?<=_)([[:alnum:]]+)_[[:digit:]]+$")),
+      `Network` = if_else(
+        is.na(`Network`), 
+        "subcortical", 
+        `Network`
+      ),
+      `Network` = factor(
+        `Network`, 
+        levels = c(
+          "limbic A",
+          "default A", "default B", "default C",
+          "control A", "control B",
+          "salience / ventral attention A",
+          "salience / ventral attention B",
+          "dorsal attention A","dorsal attention B",
+          "temporal parietal",
+          "somatomotor A", "somatomotor B", "central visual", "peripheral visual",
+          "subcortical"
+        ),
+        labels = c(
+          "lmbc A",
+          "def A", "def B", "def C",
+          "cntrl A", "cntrl B",
+          "sal A", "sal B",
+          "dors atn A", "dors atn B",
+          "temp par",
+          "sm A", "sm B", "cnt vis", "periph vis",
+          "sub cort"
+        ),
+        ordered = TRUE)) 
+}
+
+```
+
+```{r}
+space5 <- load_space(here::here("_tfce")) |>
+  mutate(contrast = "Face > Shape")
+space1 <- load_space(here::here("_tfce1"))  |>
+  mutate(contrast = "Shape > 0") 
+
+space <- bind_rows(space5, space1) |>
+  filter(corrp_thresh == "0.95") |>
+  mutate(contrast = factor(contrast))
+```
+
+
+```{r, fig.height=7, fig.cap="Distribution of Average Distances within Yeo Networks (17)."}
+space  |>
+  ggplot(aes(y=`Network`, x=d)) +
+  facet_grid(contrast~n_sub, labeller = label_both, shrink = TRUE, scales = "free_y") +
+  geom_boxplot(outlier.alpha = 0.5) +
+  xlab("avg dist(Gold Peak, Study Peak) (mm)")
+```
+
+---
+
+```{r, fig.height=7, fig.cap="Average Distance within Yeo Networks (17). Error bars span 95% Confidence Interval."}
+
+space |>
+  whoppeR::WISEsummary(
+    dependentvars = "d", 
+    betweenvars = c("Network", "n_sub", "contrast")) |>
+  ggplot(aes(x=d_mean, y=Network)) +
+  facet_grid(contrast~n_sub, labeller = label_both, shrink = TRUE, scales = "free_y") +
+  geom_errorbarh(aes(xmin=d_CI_lower, xmax=d_CI_upper)) +
+  xlab("avg dist(Gold Peak, Study Peak) (mm)")
+```
+
+---
+
+```{r, fig.height=19, fig.cap="Average Distance within Schaefer parcellations (400) and Harvard-Oxford Subcortical Atlas. Color indicates Cohen's d in the Gold Standard."}
+a <- space |>
+  filter(fct_match(contrast, "Shape > 0")) |>
+  whoppeR::WISEsummary(
+    dependentvars = "d", 
+    betweenvars = c("label", "Value", "Network", "n_sub")) |>
+  rename(`Cohen's d` = Value) |>
+  ggplot(aes(x=d_mean, y=label, color=`Cohen's d`)) +
+  facet_grid(
+    `Network`~n_sub, 
+    scales = "free_y",space = "free_y", 
+    labeller = labeller(`Network` = label_wrap_gen(width = 3))) +
+  geom_errorbarh(aes(xmin=d_CI_lower, xmax=d_CI_upper))  +
+  scale_color_viridis_c(option="turbo")  +
+  xlab("avg dist(Gold Peak, Study Peak) (mm)") +
+  ggtitle("Contrast: Shape > 0") 
+
+b <- space |>
+  filter(fct_match(contrast, "Face > Shape")) |>
+  whoppeR::WISEsummary(
+    dependentvars = "d", 
+    betweenvars = c("label", "Value", "Network", "n_sub")) |>
+  rename(`Cohen's d` = Value) |>
+  ggplot(aes(x=d_mean, y=label, color=`Cohen's d`)) +
+  facet_grid(
+    `Network`~n_sub, 
+    scales = "free_y",space = "free_y", 
+    labeller = labeller(`Network` = label_wrap_gen(width = 3))) +
+  geom_errorbarh(aes(xmin=d_CI_lower, xmax=d_CI_upper))  +
+  scale_color_viridis_c(option="turbo")  +
+  xlab("avg dist(Gold Peak, Study Peak) (mm)") +
+  ggtitle("Contrast: Face > Shape") 
+
+a + b + plot_layout(ncol = 1) 
+```
+
+---
+
+```{r, fig.height=10, fig.cap="Average distance varies by effect size in gold standard."}
+sigs <- dplyr::distinct(space, n_sub) |>
+  tidyr::crossing(p = c(0.05, 0.01, 0.001)) |>
+  dplyr::mutate(
+    lower = qt(p, n_sub-1) / sqrt(n_sub),
+    upper = qt(p, n_sub-1, lower.tail = FALSE) / sqrt(n_sub)) |>
+  mutate(p=factor(p))
+
+# bind_rows(
+#   targets::tar_read(space, store=here::here("_tfce")) |> mutate(contrast="face>shape"), 
+#   targets::tar_read(space, store=here::here("_tfce1")) |> mutate(contrast="face>0")) |>
+#   filter(corrp_thresh == "0.95") |>
+targets::tar_read(space, store=here::here("_tfce")) |> 
+  rename(Network = `Network Name`, FWE = corrp_thresh) |>
+  filter(!is.na(label)) |>
+  mutate(Value = Value / sqrt(n_pop)) |>
+  group_by(Value, n_sub, FWE, Network, label, hemi) |>
+  summarise(d = mean(d, na.rm=TRUE), .groups = "drop") |>
+  ggplot(aes(y=d, x=Value)) +
+  # geom_line(aes(group=Value), alpha=0.5) +
+  geom_vline(aes(xintercept=upper, linetype=p), data=sigs) +
+  # geom_point(aes(color=corrp_thresh), alpha=0.5) +
+  geom_point(alpha=0.5) +
+  facet_grid(FWE~n_sub, labeller = label_both) +
+  xlab("Gold Standard Peak Cohen's d") +
+  ylab("avg dist(Gold Peak, Study Peak) (mm)") +
+  ggtitle("Contrast: Face > Shape")
+
+```
+
