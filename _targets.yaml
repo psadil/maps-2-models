@@ -13,4 +13,8 @@ tfce2:
 bias:
   store: _bias
   script: _tfcebias.R
+hcp:
+  store: _hcp
+  script: _hcp.R
+
 

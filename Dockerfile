@@ -1,7 +1,7 @@
 FROM rocker/rstudio:4.2
 
 RUN apt-get update \
-  && apt-get -y install libxml2-dev \
+  && apt-get -y install apt-utils && apt-get -y install libxml2-dev \
   && apt-get clean
 
 #ENV RENV_VERSION 0.15.5

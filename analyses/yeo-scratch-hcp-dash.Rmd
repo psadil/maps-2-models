@@ -1,0 +1,219 @@
+---
+title: "HCP"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, error = FALSE, fig.width = 10, cache=TRUE)
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(purrr)
+library(stringr)
+library(patchwork)
+library(forcats)
+source(here::here("R","utils.R"))
+source(here::here("R","tfce.R"))
+source(here::here("R","updates.R"))
+source(here::here("R","poster.R"))
+
+store <- here::here("_hcp")
+Sys.setenv(TAR_PROJECT = "hcp")
+
+n_pop <- targets::tar_read(tfce_pop, store=store)$n_sub
+
+load_space <- function(){
+  targets::tar_read(space, store = store) |>
+    filter(!is.na(label)) |>
+    mutate(corrp_thresh = factor(corrp_thresh)) |>
+    # filter_space(n_peaks=100) |>
+    rename(Network = `Network Name`) |>
+    mutate(
+      Value = Value / sqrt(n_pop),
+      label = if_else(
+        is.na(`Network`), 
+        label, 
+        str_extract(label, "(?<=_)([[:alnum:]]+)_[[:digit:]]+$")),
+      `Network` = if_else(
+        is.na(`Network`), 
+        "subcortical", 
+        `Network`
+      ),
+      `Network` = factor(
+        `Network`, 
+        levels = c(
+          "limbic",
+          "default",
+          "control",
+          "salience / ventral attention",
+          "dorsal attention",
+          "somatomotor", "visual",
+          "subcortical"
+        ),
+        # labels = c(
+        #   "lmbc",
+        #   "def",
+        #   "cntrl",
+        #   "sal",
+        #   "dors atn",
+        #   "sm", "vis",
+        #   "sub cort"
+        # ),
+        ordered = TRUE)
+      # `Network` = factor(
+      #   `Network`, 
+      #   levels = c(
+      #     "limbic A", "limbic B",
+      #     "default A", "default B", "default C",
+      #     "control A", "control B", "control C",
+      #     "salience / ventral attention A",
+      #     "salience / ventral attention B",
+      #     "dorsal attention A","dorsal attention B",
+      #     "temporal parietal",
+      #     "somatomotor A", "somatomotor B", "central visual", "peripheral visual",
+      #     "subcortical"
+      #   ),
+      #   labels = c(
+      #     "lmbc A", "lmbc B",
+      #     "def A", "def B", "def C",
+      #     "cntrl A", "cntrl B", "cntrl C",
+      #     "sal A", "sal B",
+      #     "dors atn A", "dors atn B",
+      #     "temp par",
+      #     "sm A", "sm B", "cnt vis", "periph vis",
+      #     "sub cort"
+      #   ),
+      #   ordered = TRUE)
+    ) 
+}
+
+```
+
+```{r}
+space <- load_space() |>
+  left_join(targets::tar_read(contrasts, store=store),by = c("Task", "CopeNumber")) |>
+  rename(contrast=ContrastName, FWE = corrp_thresh) |>
+  filter(fct_match(FWE, "0.01"))
+# |>
+#   dplyr::filter(
+#         !Task=="EMOTION",
+#           (Task=="WM" & CopeNumber %in%  c(11)) |
+#           (Task=="GAMBLING" & CopeNumber %in% c(1, 2, 3)) |
+#           (Task=="MOTOR") |
+#           (Task=="LANGUAGE" & CopeNumber%in% 1:3) |
+#           (Task=="SOCIAL" & CopeNumber%in% 1:3) |
+#           (Task=="RELATIONAL" & CopeNumber%in%1:3)
+#       )
+
+
+```
+
+Average Across Contrasts
+===
+
+```{r, fig.height=7, fig.cap="Points represent simulated study iterations, averaging across all peaks for each task and contrast. "}
+space |>
+  group_by(Task, contrast, n_sub, iter) |>
+  summarise(d = mean(d)) |>
+  rename(`N Sub` = n_sub) |>
+  ggplot(aes(y=contrast, x=d)) +
+  facet_grid(Task~`N Sub`, shrink = TRUE, scales = "free_y") +
+  geom_boxplot(outlier.alpha = 0.25, outlier.shape = NA) +
+  geom_jitter(width = 0, alpha=0.1) +
+  scale_x_continuous(
+    name = "avg dist(Gold Peak, Study Peak) (mm)",
+    breaks = c(0, 25),
+    labels = c(0, 25),
+    limits = c(0, 50)) +
+  theme_gray(base_size = 10)
+
+```
+
+
+Average Within Networks
+===
+
+
+```{r, fig.height=7, fig.cap="Boxplots cover simulated study iterations, averaging across all peaks within each network (Yeo7), for each task and contrast."}
+space |>
+  group_by(Task, contrast, n_sub, iter, Network) |>
+  summarise(d = mean(d)) |>
+  rename(`N Sub` = n_sub) |>
+  ggplot(aes(y=contrast, x=d, color=Network)) +
+  facet_grid(Task~`N Sub`, shrink = TRUE, scales = "free_y") +
+  geom_boxplot(outlier.alpha = 0.25) +
+  # geom_jitter(width = 0, alpha=0.1) +
+  scale_x_continuous(
+    name = "avg dist(Gold Peak, Study Peak) (mm)",
+    breaks = c(0, 50),
+    labels = c(0, 50),
+    limits = c(0, 100)) +
+  theme_gray(base_size = 10)
+
+
+```
+
+
+By Effect Size
+===
+
+
+```{r, fig.height=10, fig.cap="Points represent peaks for peaks for each task and contrast, averaging across simulated study iterations."}
+# sigs <- dplyr::distinct(space, n_sub) |>
+#   tidyr::crossing(p = c(0.05, 0.01, 0.001)) |>
+#   dplyr::mutate(
+#     lower = qt(p, n_sub-1) / sqrt(n_sub),
+#     upper = qt(p, n_sub-1, lower.tail = FALSE) / sqrt(n_sub)) |>
+#   mutate(p=factor(p))
+
+# bind_rows(
+#   targets::tar_read(space, store=here::here("_tfce")) |> mutate(contrast="face>shape"), 
+#   targets::tar_read(space, store=here::here("_tfce1")) |> mutate(contrast="face>0")) |>
+#   filter(corrp_thresh == "0.95") |>
+space |>
+  # left_join(targets::tar_read(contrasts, store=store),by = c("Task", "CopeNumber")) |>
+  # filter(!is.na(label)) |>
+  # mutate(Value = Value / sqrt(n_pop)) |>
+  group_by(Value, n_sub, FWE, contrast, x, y, z, Task) |>
+  summarise(d = mean(d, na.rm=TRUE), .groups = "drop") |>
+  ggplot(aes(y=d, x=Value)) +
+  # geom_line(aes(group=Value), alpha=0.5) +
+  # geom_vline(aes(xintercept=upper, linetype=p), data=sigs) +
+  # geom_point(aes(color=corrp_thresh), alpha=0.5) +
+  geom_point(alpha=0.1) +
+  facet_grid(Task+contrast~n_sub) +
+  xlab("Gold Standard Peak Cohen's d") +
+  ylab("avg dist(Gold Peak, Study Peak) (mm)")
+
+```
+
+Average Distance Within Networks, With Effect Size
+===
+
+```{r, fig.height=8}
+avg <- space |>
+  distinct(x, y, z, Network, Task, contrast, Value) |>
+  group_by(Network, Task, contrast) |>
+  summarise(avg = mean(Value), .groups = "drop")
+
+space |>
+  whoppeR::WISEsummary(
+    dependentvars = "d",
+    betweenvars = c("Network", "n_sub", "Task", "contrast"),
+    na.rm = TRUE
+  ) |>
+  left_join(avg) |>
+  rename(`N Sub` = n_sub) |>
+  ggplot(aes(y=Network)) +
+  facet_grid(Task+contrast~`N Sub`, shrink = TRUE, scales = "free_y") +
+  geom_errorbarh(aes(color=avg, xmin=d_CI_lower, xmax=d_CI_upper)) +
+  scale_color_viridis_c(option="turbo") +
+  scale_x_continuous(
+    name = "avg dist(Gold Peak, Study Peak) (mm)") +
+  theme_gray(base_size = 10)
+```
+

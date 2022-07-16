@@ -79,11 +79,24 @@ space <- bind_rows(space5, space1) |>
 
 
 ```{r, fig.height=7, fig.cap="Distribution of Average Distances within Yeo Networks (17)."}
-space  |>
+p <- space  |>
+  rename(`N Sub` = n_sub) |>
   ggplot(aes(y=`Network`, x=d)) +
-  facet_grid(contrast~n_sub, labeller = label_both, shrink = TRUE, scales = "free_y") +
-  geom_boxplot(outlier.alpha = 0.5) +
-  xlab("avg dist(Gold Peak, Study Peak) (mm)")
+  facet_grid(contrast~`N Sub`, labeller = label_both, shrink = TRUE, scales = "free_y") +
+  geom_boxplot(outlier.alpha = 0.25) +
+  scale_x_continuous(
+    name = "avg dist(Gold Peak, Study Peak) (mm)",
+    breaks = c(0, 100),
+    labels = c(0, 100)) +
+  theme_gray(base_size = 10)
+
+ggsave(
+  here::here("analyses", "agv-dist-yeo-ukb.png"), 
+  plot = p, 
+  device = ragg::agg_png,
+  height = 4,
+  width=5.5)
+p
 ```
 
 ---

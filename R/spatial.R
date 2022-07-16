@@ -19,7 +19,7 @@ make_atlas <- function(labelxml, nii){
 }
 
 
-make_atlas_full <- function(){
+make_atlas_full <- function(networks=7){
   # cortical labels for Schaefer2018_400Parcels_17Networks_order.lut
   # subcortical from harvard-oxford
   
@@ -28,7 +28,7 @@ make_atlas_full <- function(){
   c_labels <- readr::read_delim(
     here::here(
       "data-raw", "Parcellations","MNI", "fsleyes_lut", 
-      "Schaefer2018_400Parcels_17Networks_order.lut"
+      glue::glue("Schaefer2018_400Parcels_{networks}Networks_order.lut")
     ), 
     col_names = c("index", "R","G","B","label")) |>
     dplyr::select(index, label) |>
@@ -39,13 +39,13 @@ make_atlas_full <- function(){
       readr::read_csv(
         here::here(
           "data-raw", "1000subjects_reference", "Yeo_JNeurophysiol11_SplitLabels", 
-          "Yeo2011_17networks_N1000.split_components.glossary.csv")
+          glue::glue("Yeo2011_{networks}networks_N1000.split_components.glossary.csv"))
       ), 
       by = "Label Name") 
   
   cortical <- to_tbl(
     here::here(
-      "data-raw", "Parcellations", "MNI", "Schaefer2018_400Parcels_17Networks_order_FSLMNI152_2mm.nii.gz"), 
+      "data-raw", "Parcellations", "MNI", glue::glue("Schaefer2018_400Parcels_{networks}Networks_order_FSLMNI152_2mm.nii.gz")), 
     "index"
     ) |>
     dplyr::filter(index > 0) |>
