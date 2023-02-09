@@ -17,7 +17,7 @@ Sys.setenv(
 
 #options(clustermq.scheduler = "multiprocess")
 
-targets::tar_option_set(format = "qs", storage="worker", retrieval="worker", error="continue")
+targets::tar_option_set(format = "qs", storage="worker", retrieval="worker")
 library(future.callr)
 plan(callr)
 
@@ -41,13 +41,13 @@ list(
     tfce_pop,
     do_tfce_pop(test, n_sub=length(test), iter=0, storage_dir=Sys.getenv("NIIDIR"))),
   tar_target(tfce_cor, do_cor(tfce, tfce_pop)),
-  tar_target(corrp_thresh, c(0.1, 0.5, 0.95)),
+  tar_target(corrp_thresh, c(0.01, 0.95)),
   tar_target(
     maxes,
     dplyr::mutate(
       tfce,
       m = purrr::map2(
-        .data$tfce_corrp_tstat, .data$tfce_tstat,
+        .data$tfce_corrp_tstat, stringr::str_replace(.data$tfce_tstat,"/_tstat", "_tstat"),
         ~get_tfce_maxes(corrp=.x, tstat=.y, corrp_thresh=corrp_thresh, minextent=0)),
       corrp_thresh = corrp_thresh),
     pattern = cross(map(tfce), corrp_thresh)
@@ -68,7 +68,8 @@ list(
           .data$m,
           ~augment_distance(
             study = .x,
-            reference = gold_peaks$m[[1]]
+            reference = gold_peaks$m[[1]],
+            vox_mm = 2.4
           )
         )
       ) |>

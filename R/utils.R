@@ -123,3 +123,22 @@ get_cor_sampling_distr <- function(n_min=10, n_max=500, rho=0.175){
     dplyr::select(-data) |>
     tidyr::pivot_longer(c(lower, upper))
 }
+
+
+
+.get_gray_copes <- function(avail, at){
+  to_tbl(avail, measure = "cope") |>
+    dplyr::left_join(at, by = c("x", "y", "z")) |>
+    dplyr::filter(!is.na(.data$label))
+}
+
+get_eff_by_roi <- function(test, at){
+  
+  test |>
+    tidyr::unnest(avail) |>
+    dplyr::mutate(
+      data = purrr::map(avail, .get_gray_copes, at=at),
+      avail = as.character(avail)
+    ) |>
+    tidyr::unnest(data)
+}

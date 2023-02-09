@@ -3,6 +3,7 @@ Sys.setenv(MAKEFLAGS = "-j4")
 source("renv/activate.R")
 renv::settings$use.cache(TRUE)
 options("readr.num_threads" = 1)
+Sys.setenv(FSLDIR="/home/ubuntu/mnt/fsl")
 
 # options(renv.config.pak.enabled=TRUE)
 

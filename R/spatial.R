@@ -19,7 +19,7 @@ make_atlas <- function(labelxml, nii){
 }
 
 
-make_atlas_full <- function(networks=7){
+make_atlas_full <- function(networks=7, n_parcels=400){
   # cortical labels for Schaefer2018_400Parcels_17Networks_order.lut
   # subcortical from harvard-oxford
   
@@ -28,7 +28,7 @@ make_atlas_full <- function(networks=7){
   c_labels <- readr::read_delim(
     here::here(
       "data-raw", "Parcellations","MNI", "fsleyes_lut", 
-      glue::glue("Schaefer2018_400Parcels_{networks}Networks_order.lut")
+      glue::glue("Schaefer2018_{n_parcels}Parcels_{networks}Networks_order.lut")
     ), 
     col_names = c("index", "R","G","B","label")) |>
     dplyr::select(index, label) |>
@@ -38,20 +38,25 @@ make_atlas_full <- function(networks=7){
     dplyr::left_join(
       readr::read_csv(
         here::here(
-          "data-raw", "1000subjects_reference", "Yeo_JNeurophysiol11_SplitLabels", 
+          "data-raw", 
+          "1000subjects_reference", 
+          "Yeo_JNeurophysiol11_SplitLabels", 
           glue::glue("Yeo2011_{networks}networks_N1000.split_components.glossary.csv"))
       ), 
       by = "Label Name") 
   
   cortical <- to_tbl(
     here::here(
-      "data-raw", "Parcellations", "MNI", glue::glue("Schaefer2018_400Parcels_{networks}Networks_order_FSLMNI152_2mm.nii.gz")), 
+      "data-raw", 
+      "Parcellations", 
+      "MNI", 
+      glue::glue("Schaefer2018_{n_parcels}Parcels_{networks}Networks_order_FSLMNI152_2mm.nii.gz")), 
     "index"
     ) |>
     dplyr::filter(index > 0) |>
     dplyr::left_join(c_labels, by = "index")
   
-  subcortical <- subcortical <- make_atlas(
+  subcortical <- make_atlas(
     fs::path(fslr::fsldir(), "data/atlases/HarvardOxford-Subcortical.xml"),
     fs::path(fslr::fsldir(), "data/atlases/HarvardOxford/HarvardOxford-sub-maxprob-thr0-2mm.nii.gz")) |>
     dplyr::filter(stringr::str_detect(label, "Brain-Stem|Cortex|Matter|Ventricle", negate = TRUE)) |>
@@ -66,7 +71,11 @@ make_atlas_full <- function(networks=7){
     dplyr::mutate(
       n_voxels = dplyr::n(),
       volume = n_voxels*2^3) |>
-    dplyr::ungroup() 
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      n_parcels = n_parcels,
+      n_networks = networks
+    )
   
 }
 
@@ -120,7 +129,7 @@ get_maxes <- function(
     dplyr::left_join(at, by = c("x","y","z"))
 }
 
-augment_distance <- function(study, reference){
+augment_distance <- function(study, reference, vox_mm=2.4){
   # happens when no peaks were found in study
   if(nrow(study)==0) return(reference)
   reference |>
@@ -131,9 +140,10 @@ augment_distance <- function(study, reference){
       x.study = study$x[study_ind],
       y.study = study$y[study_ind],
       z.study = study$z[study_ind],
-      d = 2*sqrt((x - x.study)^2 + (y - y.study)^2 +(z - z.study)^2 )) 
+      d = vox_mm*sqrt((x - x.study)^2 + (y - y.study)^2 +(z - z.study)^2 )) 
 }
 
 add_labels <- function(space, at = make_atlas_full()){
-  dplyr::left_join(space, at, by = c("x", "y", "z"))
+  dplyr::left_join(space, at, by = c("x", "y", "z")) |>
+    dplyr::filter(!is.na(label)) # study peaks can be outside gray matter
 }

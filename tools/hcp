@@ -3,6 +3,6 @@
 export FSLDIR=/home/ubuntu/mambaforge
 export FSLOUTPUTTYPE=NIFTI_GZ
 
-Rscript -e "targets::tar_make_future(script='_hcp.R', workers = 60, store='_hcp')"
+Rscript -e "targets::tar_make_future(space, script='_hcp.R', workers = 40, store='_hcp')"
 #Rscript -e "targets::tar_make(script='_hcp.R', store='_hcp')"
 
