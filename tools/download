@@ -1,0 +1,14 @@
+#!/bin/bash
+
+zstat=/home/ubunut/mnt/ukb/zstats
+
+awk '{print $1}' bulk | xargs -P4 -I {} bash -c \
+  'if [[ ! -d /home/ubuntu/mnt/ukb/zstats/sub-{} ]]; then datalad create /home/ubuntu/mnt/ukb/zstats/sub-{} \
+  && cd /home/ubuntu/mnt/ukb/zstats/sub-{} \
+  && datalad ukb-init --bids $(grep {} /home/ubuntu/mnt/ukb/bulk) \
+  && git config --add annex.security.allowed-url-schemes "http https ftp file" \
+  && datalad -c datalad.ukbiobank.keyfile=/home/ubuntu/mnt/ukbkey ukb-update \
+  && git switch incoming \
+  && datalad drop --reckless kill *zip \
+  && git switch incoming-bids \
+  && datalad drop --reckless kill ses-2/func; fi'
