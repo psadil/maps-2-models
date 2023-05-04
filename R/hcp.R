@@ -273,7 +273,7 @@ get_pop_d <- function(tfce_pop){
 format_arrow_table <- function() {
   targets::tar_format(
     read = function(path) {arrow::read_parquet(path, as_data_frame = FALSE)},
-    write = function(object, path) {arrow::write_parquet(object, path, version = "2.0")},
+    write = function(object, path) {arrow::write_parquet(object, path, version = "2.6")},
     marshal = function(object) as.data.frame(object),
     unmarshal = function(object) arrow::Table$create(object)
   )}

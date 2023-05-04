@@ -53,21 +53,27 @@ space |>
     names_pattern = "within_([[:digit:]]+)", 
     names_transform = as.integer) |>
   unite(col="peak", x, y, z) |>
-  mutate(n_simulations = n_simulations / 100) |>
+  mutate(
+    n_simulations = n_simulations / 100,
+    n_sub = glue::glue("N Sub: {n_sub}"),
+    n_sub = factor(
+      n_sub, 
+      levels = c("N Sub: 20", "N Sub: 40", "N Sub: 60", "N Sub: 80", "N Sub: 100"))) |>
   ggplot(aes(x=within, group=peak, y=n_simulations)) +
   geom_point(alpha=0.2) +
   geom_line(alpha=0.2) +
   facet_grid(n_sub~Task) +
   scale_y_continuous(
-    "Percent Simulations with Peak in Radius",
+    "Proportion Simulations with Peak in Radius",
     limits = c(0,1),
     breaks = c(0,0.5,1),
     labels = c(0,0.5,1)
   ) +
   scale_x_continuous(
-    "Radius (mm)"
+    "Radius (mm)",
+    limits = c(0, 20)
   ) +
-  theme_gray(base_size = 9)
+  theme_gray(base_size = 14)
 
-ggsave("prop-studies-within-mm.png", width = 7, height = 6)
+ggsave("analyses/figures/prop-studies-within-mm.png", width = 9, height = 6)
 

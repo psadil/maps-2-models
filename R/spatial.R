@@ -79,6 +79,63 @@ make_atlas_full <- function(networks=7, n_parcels=400){
   
 }
 
+make_atlas_full2 <- function(networks=7, n_parcels=400){
+  # cortical labels for Schaefer2018_400Parcels_17Networks_order.lut
+  # subcortical from harvard-oxford
+  
+  # always remove all brain-setm/white matter/cortex from subcortical, and always 
+  # defer to cortical when available
+  c_labels <- readr::read_delim(
+    here::here(
+      "data-raw", "Parcellations","MNI", "fsleyes_lut", 
+      glue::glue("Schaefer2018_{n_parcels}Parcels_{networks}Networks_order.lut")
+    ), 
+    col_names = c("index", "R","G","B","label")) |>
+    dplyr::select(index, label) |>
+    dplyr::mutate(
+      `Label Name` = stringr::str_remove(label, "_[[:digit:]]+$")
+    ) |>
+    dplyr::left_join(
+      readr::read_csv(
+        here::here(
+          "data-raw", 
+          "1000subjects_reference", 
+          "Yeo_JNeurophysiol11_SplitLabels", 
+          glue::glue("Yeo2011_{networks}networks_N1000.split_components.glossary.csv"))
+      ), 
+      by = "Label Name") 
+  
+  cortical <- to_tbl(
+    here::here(
+      "data-raw", 
+      "Parcellations", 
+      "MNI", 
+      glue::glue("Schaefer2018_{n_parcels}Parcels_{networks}Networks_order_FSLMNI152_2mm.nii.gz")), 
+    "index"
+  ) |>
+    dplyr::filter(index > 0) |>
+    dplyr::left_join(c_labels, by = "index")
+  
+  subcortical <- make_atlas(
+    fs::path(fslr::fsldir(), "data/atlases/HarvardOxford-Subcortical.xml"),
+    fs::path(fslr::fsldir(), "data/atlases/HarvardOxford/HarvardOxford-sub-maxprob-thr0-2mm.nii.gz")) |>
+    dplyr::filter(stringr::str_detect(label, "Brain-Stem|Cortex|Matter|Ventricle", negate = TRUE)) |>
+    dplyr::mutate(label = stringr::str_remove(label, "Left |Right ")) |>
+    dplyr::anti_join(cortical, by = c("x", "y", "z")) # take only voxels not otherwise accounted for
+  
+  dplyr::bind_rows(cortical, subcortical) |>
+    dplyr::mutate(
+      hemi = dplyr::if_else(x > 45, "Left", "Right")) |>
+    dplyr::group_by(label, hemi) |>
+    dplyr::mutate(
+      n_voxels = dplyr::n(),
+      volume = n_voxels*2^3) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      n_parcels = n_parcels,
+      n_networks = networks
+    )
+}
 
 get_sizes <- function(cls){
   sizes <- neurobase::img_indices(cls$osize, add_values = TRUE) |>

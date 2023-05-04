@@ -20,56 +20,6 @@ at_list <- targets::tar_read(at_list) |>
 
 targets::tar_load(pop_d)
 
-out <- targets::tar_read(prop0all) |>
-  dplyr::left_join(at_list) |>
-  distinct(
-    n_sub, iter, Task, ContrastName, CopeNumber, label, `Label Name`,
-    `Network Name`, `Full component name`, n_parcels) |>
-  collect() |>
-  count(
-    n_sub, Task, ContrastName, CopeNumber, label, `Label Name`,
-    `Network Name`, `Full component name`, n_parcels) |>
-  mutate(prop = n / 100)
-
-# these are the regions whose activation is the "strongest"
-# so, assumption is that researcher picks the task to activate
-# this specific region
-gold <- pop_d |>
-  left_join(at_list) |>
-  group_by(
-    Task, label, `Label Name`,
-    `Network Name`, `Full component name`, n_parcels) |>
-  summarise(
-    d = mean(cope/sigma),
-    .groups = "drop"
-  ) |>
-  group_by(Task, n_parcels) |>
-  slice_max(order_by=d, n=10) |>
-  ungroup() |>
-  filter(!is.na(label)) |> 
-  group_by(Task) |>
-  mutate(
-    l=label |> 
-      factor() |> 
-      as.numeric() |>
-      factor()) |>
-  ungroup()
-
-# regions with at least one voxel active
-out |>
-  right_join(distinct(gold, Task, l, label, n_parcels)) |>
-  ggplot(aes(x=n_sub, y=prop, group=l)) +
-  geom_point(show.legend = FALSE, alpha=0.2) +
-  geom_line(show.legend = FALSE, alpha=0.2) +
-  facet_grid(n_parcels~Task) +
-  scale_y_continuous(
-    "Proportion Simulations w/ Activity in Most Active ROI",
-    limits = c(0.25, 1)
-  ) +
-  xlab("N Sub")
-
-ggsave("prop-active-most-active-roi.png", width = 7, height = 6)
-
 
 library(ggsegSchaefer)
 
@@ -181,51 +131,6 @@ space |>
 
 ggsave("prop-w-peak-most-active-roi", width = 7, height = 6)
 
-
-gold2 <- targets::tar_read(gold_peaks) |>
-  select(Task, m) |>
-  unnest(m) |>
-  left_join(at_list) |>
-  filter(!is.na(label)) |> 
-  group_by(Task, label, n_parcels, n_networks) |>
-  slice_max(order_by = Value, n = 1) |>
-  group_by(Task, n_parcels, n_networks) |>
-  slice_max(order_by = Value, n = 10, with_ties = FALSE) |>
-  ungroup() |>
-  group_by(Task) |>
-  mutate(
-    l=label |> 
-      factor() |> 
-      as.numeric() |>
-      factor()) |>
-  ungroup()
-
-  
-space |>
-  filter(corrp_thresh==0.95) |>
-  select(Task, iter, n_sub, x=x.study, y=y.study, z=z.study) |>
-  left_join(select(at_list, -`Label Name`, -hemi, -n_voxels, -volume)) |>
-  semi_join(distinct(gold2, Task, label, n_parcels)) |>
-  distinct(Task, iter, label, n_sub, n_parcels) |>
-  right_join(distinct(gold2, Task, label, n_parcels) |> crossing(distinct(space, n_sub))) |>
-  group_by(Task, label, n_sub, n_parcels) |>
-  summarise(
-    prop = sum(!is.na(iter)) / 100,
-    .groups = "drop"
-  ) |>
-  ggplot(aes(x=n_sub, y=prop, group=label)) +
-  geom_point(show.legend = FALSE, alpha=0.2) +
-  geom_line(show.legend = FALSE, alpha=0.2) +
-  facet_grid(n_parcels~Task) +
-  scale_y_continuous(
-    "Proportion Simulations with Peak in ROI with Peak",
-    limits = c(0, 1),
-    breaks = c(0, 1),
-    labels = c(0, 1)
-  ) +
-  xlab("N Sub")
-
-ggsave("prop-w-peak-roi-w-peak.png", width = 7, height = 6)
 
 # for the most active regions, which have the highest peaks
 gold_peaks0 <- targets::tar_read(gold_peaks) |>

@@ -6,8 +6,11 @@ library(stringr)
 library(patchwork)
 library(forcats)
 
+Sys.setenv(TAR_PROJECT = "hcp")
+
+targets::tar_load(pop_d)
+
 pop_d |> 
-  filter(str_detect(ContrastName, "PUNISH-REWARD", negate = TRUE)) |>
   ggplot() + 
   facet_wrap(~Task) +
   scattermore::geom_scattermore(aes(x=cope, y=sigma), alpha=0.1, pointsize=1) +
@@ -20,6 +23,19 @@ pop_d |>
   ylab(expression(beta~SD)) +
   theme_gray(base_size = 14)
 
-ggsave("analyses/figures/beta-by-sd.png", device = ragg::agg_png, width = 8, height = 6)
+ggsave("analyses/figures/topo_gold.png", device = ragg::agg_png, width = 8, height = 6)
 
+
+pop_d |> 
+  mutate(d = abs(cope / sigma)) |>
+  na.omit() |>
+  ggplot(aes(x=d, y=Task)) + 
+  ggdist::stat_dots(quantiles = 1000) +
+  xlab("Abs. Effect Size") 
+
+ggsave(
+  "analyses/figures/topo_abs-vox-eff.png", 
+  device = ragg::agg_png, 
+  width = 4, 
+  height = 4)
 

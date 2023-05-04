@@ -19,5 +19,10 @@ hcp:
 space:
   store: _space
   script: _space.R
-
+hcp_ptfce:
+  store: _hcp_ptfce
+  script: _hcp_ptfce.R
+pairwise:
+  store: _pairwise
+  script: _pairwise.R
 

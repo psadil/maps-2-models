@@ -24,7 +24,7 @@ p <- pop_cor |>
   geom_point(alpha=0.25, position = position_jitterdodge()) +
   ylab("Correlation with Reference")
 
-ggsave("analyses/cor_w_reference.png", p)
+ggsave("analyses/figures/cor_w_reference.png", p)
 
 # this is correlation of effect size (cohen's d)
 targets::tar_load(pop_cor2)
