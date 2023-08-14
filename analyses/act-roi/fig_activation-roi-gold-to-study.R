@@ -15,45 +15,13 @@ source(here::here("R", "poster.R"))
 source(here::here("R", "hcp.R"))
 source(here::here("R", "ptfce.R"))
 
-phi <- function(x, y){
-  tp <- mean(x & y)
-  fp <- mean(!x & y)
-  tn <- mean(!x & !y)
-  fn <- mean(x & !y)
-  if(((tp&fp) == 0) | ((tp & fn) == 0) | ((fn & tn) == 0) | ((fp & tn) == 0)){
-    return(0)
-  }
-  cor(x, y)
-}
-
-dice <- function(x, y){
-  2 * sum(x & y) / (sum(x) + sum(y))
-}
-
 # What proportion of simulated studies have active voxels within the ROIs within 
 # that are most active in the gold standard?
 Sys.setenv(TAR_PROJECT = "hcp_ptfce")
 
-gold_tested <- targets::tar_read(gold_tested) |>
-  mutate(
-    d = statistic / sqrt(n_sub),
-    active = abs(d) > 0.2) |>
-  mutate(r = row_number(desc(abs(estimate))), .by = c(Task, n_parcels))
+targets::tar_load(data_roi_study_to_gold)
 
-rois_tested <- targets::tar_read(rois_tested2) |>
-  collect()
-
-gold_most <- gold_tested |>
-  filter(r < 11) |>
-  select(Task, n_parcels, label, d) 
-
-rois_tested |>
-  semi_join(gold_most) |>
-  summarise(
-    prop = mean(active),
-    .by = c(Task, n_parcels, label, n_sub)
-  ) |>
-  left_join(gold_most) |>
+data_roi_study_to_gold |>
   ggplot(aes(x=n_sub, y=prop, group=label, color=abs(d))) +
   geom_point(alpha=0.2) +
   geom_line(alpha=0.2) +
@@ -72,15 +40,11 @@ rois_tested |>
 ggsave("analyses/figures/prop-activation-roi-gold-to-study.png", width = 10, height = 6.5)
 
 
-rois_tested |>
-  semi_join(gold_most) |>
-  summarise(
-    prop = mean(active),
-    .by = c(Task, n_parcels, label, n_sub)
-  ) |>
-  left_join(gold_most) |>
+
+data_roi_study_to_gold |>
   filter(n_parcels==400) |>
-  ggplot(aes(x=n_sub, y=prop, group=label, color=abs(d))) +
+  mutate(expected = purrr::map2_dbl(n_sub, d, ~power.t.test(n=.x, delta=.y)$power)) |>
+  ggplot(aes(x=expected, y=prop, group=label, color=abs(d))) +
   geom_point(alpha=0.2) +
   geom_line(alpha=0.2) +
   facet_wrap(~Task) +
@@ -91,11 +55,12 @@ rois_tested |>
   scale_color_viridis_c(
     "Abs. Effect Size",
     option = "turbo") +
-  xlab("N Sub") +
+  xlab("Expected Power") +
+  geom_abline() +
   theme_gray(base_size = 12) +
   theme(legend.position = "bottom")
 
-ggsave("analyses/figures/prop-activation-roi-gold-to-study400.png", width = 10, height = 6.5)
+ggsave("analyses/figures/prop-activation-roi-gold-to-study_expected-power.png", width = 5, height = 5)
 
 # gold_tested <- targets::tar_read(gold_tested) |>
 #   mutate(

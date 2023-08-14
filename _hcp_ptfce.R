@@ -12,6 +12,8 @@ source(here::here("R", "loading.R"))
 source(here::here("R", "poster.R"))
 source(here::here("R", "hcp.R"))
 source(here::here("R", "ptfce.R"))
+source(here::here("R", "figures.R"))
+source(here::here("R", "pairwise.R"))
 
 Sys.setenv(
   NIIDIR = here::here("data-raw","hcp-niis-ptfce")
@@ -89,7 +91,7 @@ list(
             iter=0, 
             storage_dir=Sys.getenv("NIIDIR"), 
             flags=.y,
-            resample=FALSE,
+            resample = FALSE,
             enhance = FALSE))) |>
       tidyr::unnest(tmp),
     pattern = map(test)),
@@ -175,7 +177,10 @@ list(
     pattern = map(tfce_null)),
   tar_target(
     active_null, 
-    tidyr::unnest(active0_null, tmp) |> dplyr::select(-ptfce), 
+    active0_null |>
+      dplyr::select(-copes) |>
+      tidyr::unnest(tmp) |> 
+      dplyr::select(-ptfce), 
     format = format_arrow_table()),
   tar_target(
     rois,
@@ -232,7 +237,136 @@ list(
     format = format_arrow_table()
   ),
   tar_target(
-    pop_cor2,
-    cor_w_pop2(tfce, tfce_pop, method="pearson"),
+    data_topo_gold_to_study,
+    make_data_topo_gold_to_study(tfce, tfce_pop, method="spearman"),
     cross(map(tfce))),
+  tar_target(ContrastNames, contrasts$ContrastName),
+  tar_target(
+    pairwise, 
+    cor_pairwise_ptfce(tfce, ContrastNames, n_sub, method="spearman"), 
+    cross(n_sub, ContrastNames)),
+  tar_target(
+    data_topo_study_to_study, 
+    make_data_topo_study_to_study(pairwise=pairwise), 
+    format = "parquet"),
+  tar_target(dataset, here::here("data-raw/hcp-parquet")),
+  tarchetypes::tar_group_by(
+    subtask, 
+    get_subs_tasks(dataset), 
+    sub,
+    format = "parquet"),
+  tar_target(
+    rhos, 
+    do_loo_cor(dataset, dplyr::select(subtask, sub, task)), 
+    map(subtask),  
+    format = "parquet"),
+  tar_target(
+    maxes_no_thresh,
+    dplyr::mutate(
+      tfce,
+      m = purrr::map(
+        .data$ptfce,
+        ~get_ptfce_maxes_pop(q=.x, minextent=0, cluster_thresh = 0.0001)),
+      corrp_thresh = 0),
+    pattern = cross(map(tfce))
+  ),  
+  tar_target(
+    space0_no_thresh,
+    dplyr::left_join(
+      maxes_no_thresh, 
+      gold_peaks, 
+      by=c("Task", "CopeNumber", "ContrastName", "tar_group"), 
+      suffix=c(".study", ".ref")) |>
+      dplyr::mutate(
+        augmented = purrr::map2(
+          m.study, m.ref,
+          ~augment_distance(
+            study = .x,
+            reference = .y,
+            vox_mm = 2
+          )
+        )
+      ) |>
+      dplyr::select(
+        n_sub=n_sub.study, 
+        augmented, 
+        iter=iter.study, 
+        corrp_thresh, 
+        Task, 
+        CopeNumber, 
+        n_pop=n_sub.ref) |>
+      tidyr::unnest(augmented)
+  ),
+  tar_target(space_no_thresh, add_labels(space=space0_no_thresh, at=at)),
+  tar_target(
+    data_peak_study_to_study,
+    make_data_peak_study_to_study(
+      at=at, 
+      space=dplyr::bind_rows(space_no_thresh, space), 
+      gold_peaks=gold_peaks), 
+    format = "parquet"),
+  tar_target(
+    data_roi_study_to_gold,
+    make_data_roi_study_to_gold(
+      gold_tested=gold_tested,
+      rois_tested=rois_tested2), 
+    format = "parquet"),
+  tar_target(
+    data_roi_study_to_study,
+    make_data_roi_study_to_study(rois_tested=rois_tested2), 
+    format = "parquet"),
+  tar_target(
+    data_roi_sub_to_sub,
+    make_data_roi_sub_to_sub(rois_pop=rois_pop2), 
+    format = "parquet"),
+  tar_target(
+    data_peak_study_to_gold,
+    make_data_peak_study_to_gold(
+      at=at, 
+      gold_peaks=gold_peaks,
+      space=space), 
+    format = "parquet"),
+  tar_target(
+    zstats, 
+    test |>
+      tidyr::unnest(avail) |> 
+      dplyr::mutate(zstat=stringr::str_replace(avail, "/cope1.nii", "/zstat1.nii")) |>
+      dplyr::select(Task, CopeNumber, ContrastName, zstat),
+    format = "parquet"),
+  tar_target(
+    sub_peaks,
+    dplyr::mutate(
+      zstats,
+      m = purrr::map(
+        .data$zstat,
+        ~get_ptfce_maxes_sub(zstat=.x, cluster_thresh=0.001, minextent=0))),
+    pattern = map(zstats)
+  ),
+  tar_target(
+    space_sub,
+  dplyr::left_join(
+    sub_peaks, 
+    gold_peaks, 
+    by=c("Task", "CopeNumber", "ContrastName"), 
+    suffix=c(".study", ".ref")) |>
+    dplyr::mutate(
+      augmented = purrr::map2(
+        m.study, m.ref,
+        ~augment_distance(
+          study = .x,
+          reference = .y,
+          vox_mm = 2
+        )
+      )
+    ) |>
+      dplyr::select(augmented, Task, CopeNumber) |>
+      tidyr::unnest(augmented)
+  ),
+  tar_target(
+    data_peak_sub_to_sub,
+    make_data_peak_sub_to_sub(
+      at=at, 
+      space_sub=space_sub, 
+      gold_peaks=gold_peaks), 
+    format = "parquet")
 )

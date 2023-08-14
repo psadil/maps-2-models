@@ -15,27 +15,9 @@ source(here::here("R","hcp.R"))
 Sys.setenv(TAR_PROJECT = "hcp")
 
 
-targets::tar_load(pairwise)
+targets::tar_load(data_topo_study_to_study)
 
-tmp <- pairwise |>
-  filter(y > x, method=="pearson") |>
-  mutate(f = atanh(r)) |>
-  group_by(Task, n_sub, ContrastName, method) |>
-  summarise(
-    f = mean(f),
-    r = mean(r),
-    N = n(),
-    .groups = "drop"
-  ) |>
-  mutate(
-    `N Sub` = factor(n_sub),
-    SE = 1/sqrt(N-3)) 
-
-tmp |>
-  mutate(
-    rr = tanh(f),
-    lower = tanh(f - 1.96*SE),
-    upper = tanh(f + 1.96*SE)) |>
+data_topo_study_to_study |>
   ggplot(aes(x=rr, y=`N Sub`, color=Task)) +
   geom_point() +
   geom_line(aes(group=Task)) +

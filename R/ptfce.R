@@ -24,15 +24,43 @@ do_ptfce <- function(
       mask = oro.nifti::readNIfTI(mask), 
       verbose = FALSE)
   }else{
-    out <- list(Z = Z)
+    out <- list()
   }
+  out$Z_raw <- Z
   outf <- fs::path(
     storage_dir,
     glue::glue("nsub-{n_sub}_iter-{iter}_flags-{unique(flags)}"), 
     ext="qs")
   qs::qsave(out, file=outf)
   
-  tibble::tibble(ptfce = outf, iter = iter, n_sub = n_sub)
+  tibble::tibble(ptfce = outf, iter = iter, n_sub = n_sub, copes = list(copes))
+}
+
+do_ptfce_sub <- function(
+    zstat, 
+    mask = MNITemplate::getMNIPath("Brain_Mask", "2mm"),
+    storage_dir = here::here("data-raw","niis"),
+    flags = "",
+    enhance = TRUE){
+  
+  Z <- oro.nifti::readNIfTI(zstat)
+  
+  if (enhance){
+    out <- pTFCE::ptfce(
+      img = zstat, 
+      mask = oro.nifti::readNIfTI(mask), 
+      verbose = FALSE)
+  }else{
+    out <- list()
+  }
+  out$Z_raw <- Z
+  outf <- fs::path(
+    storage_dir,
+    glue::glue("sub-{sub}_flags-{unique(flags)}"), 
+    ext="qs")
+  qs::qsave(out, file=outf)
+  
+  tibble::tibble(ptfce = outf, iter = 0, n_sub = 1, copes = list(copes))
 }
 
 get_active_ptfce <- function(q){
@@ -44,8 +72,8 @@ get_active_ptfce <- function(q){
 
 get_ptfce_maxes <- function(
     q,
-    corrp_thresh = 0.95, 
-    cluster_thresh = 0.0001, 
+    corrp_thresh = 0.95,
+    cluster_thresh = 0.0001,
     mask=MNITemplate::getMNIPath("Brain_Mask", "2mm"), 
     minextent = 0){
   
@@ -105,6 +133,27 @@ get_ptfce_maxes_pop <- function(
     dplyr::left_join(get_sizes(cls1), by = "Cluster Index")
 }
 
+get_ptfce_maxes_sub <- function(
+    zstat,
+    cluster_thresh = 0.0001, 
+    mask=MNITemplate::getMNIPath("Brain_Mask", "2mm"), 
+    minextent = 0){
+  
+  m <- RNifti::readNifti(mask)
+  volume <- sum(m)
+
+  cls1 <- fslr::fslcluster(
+    zstat, 
+    threshold = cluster_thresh,
+    opts = glue::glue("--volume={volume} --minextent={minextent} --num=5000"))
+  
+  readr::read_tsv(
+    cls1$olmax, col_select = c(-`...6`), show_col_types = FALSE, num_threads = 1,
+    col_types = "idiii") |>
+    dplyr::mutate(x=x+1,y=y+1,z=z+1) |>
+    dplyr::mutate(sign = "positive") |>
+    dplyr::left_join(get_sizes(cls1), by = "Cluster Index")
+}
 
 
 do_roi <- function(
@@ -152,4 +201,67 @@ test_roi <- function(rois, ...,  .fwer = 0.05) {
       r = rank(estimate),
       .by = ...) |>
     dplyr::mutate(active = p.adjusted < .fwer) 
+}
+
+
+cor_pairwise_ptfce <- function(tfce, ContrastName, n_sub, method="spearman"){
+  tfce <- tfce |>
+    dplyr::filter(
+      .data$n_sub == .env$n_sub, 
+      .data$ContrastName == .env$ContrastName) 
+  
+  tmp <- tfce |>
+    dplyr::select(Task, CopeNumber, ContrastName, n_sub, ptfce, iter) |>
+    dplyr::mutate(
+      data2 = purrr::map(
+        ptfce,
+        ~to_tbl0(qs::qread(.x)$Z) |> mask())) |>
+    tidyr::unnest(data2) |>
+    dplyr::select(-ptfce) |>
+    tidyr::pivot_wider(names_from = iter, values_from = value)
+  
+  tmp |>
+    dplyr::distinct(Task, CopeNumber, ContrastName, n_sub) |>
+    dplyr::mutate(
+      rhos = list(
+        tmp |>
+          dplyr::select(tidyselect::matches("[[:digit:]]+")) |>
+          corrr::correlate(method = .env$method, quiet = TRUE) |>
+          corrr::stretch()
+      ),
+      method = .env$method) |>
+    tidyr::unnest(rhos)
+}
+
+make_data_topo_gold_to_study <- function(tfce, tfce_pop, method = "spearman"){
+  # tfce <- tfce |>
+  #   dplyr::filter(stringr::str_detect(tfce_corrp_tstat, glue::glue("flags-{ContrastName}_tfce")))
+  tfce_pop <- tfce_pop |>
+    dplyr::semi_join(tfce, by = c("ContrastName"))
+  checkmate::assert_data_frame(tfce, nrows = 1)
+  checkmate::assert_data_frame(tfce_pop, nrows = 1)
+  
+  gray <- to_tbl(MNITemplate::getMNISegPath(res="2mm")) |>
+    dplyr::filter(value==2) |>
+    dplyr::select(-value)
+  
+  study <- get_pairs(stringr::str_replace(tfce$tstat, "/_", "_"), tfce$n_sub) |>
+    mask() |>
+    dplyr::semi_join(gray, by=c("x","y","z")) |>
+    dplyr::mutate(study = cope / sigma * correct_d(tfce$n_sub)) |>
+    dplyr::select(x, y, z, study)
+  
+  test <- get_pairs(stringr::str_replace(tfce_pop$tstat, "/_", "_"), tfce_pop$n_sub) |>
+    mask() |>
+    dplyr::semi_join(gray, by=c("x","y","z")) |>
+    dplyr::mutate(test = cope / sigma * correct_d(tfce_pop$n_sub)) |>
+    dplyr::select(x, y, z, test)
+  
+  tfce |>
+    dplyr::select(Task, CopeNumber, ContrastName, iter, n_sub) |>
+    dplyr::bind_cols(
+      dplyr::left_join(study, test, by = c("x", "y", "z")) |>
+        dplyr::summarise(rho = cor(study, test, method = .env$method, use = "complete.obs"))
+    ) |>
+    dplyr::mutate(method = .env$method)
 }

@@ -201,6 +201,6 @@ augment_distance <- function(study, reference, vox_mm=2.4){
 }
 
 add_labels <- function(space, at = make_atlas_full()){
-  dplyr::left_join(space, at, by = c("x", "y", "z")) |>
-    dplyr::filter(!is.na(label)) # study peaks can be outside gray matter
+  dplyr::left_join(space, at, by = c("x", "y", "z")) 
+  # study peaks can be outside gray matter
 }

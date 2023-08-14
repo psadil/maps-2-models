@@ -11,6 +11,7 @@ source(here::here("R", "utils.R"))
 source(here::here("R", "loading.R"))
 source(here::here("R", "poster.R"))
 source(here::here("R", "hcp.R"))
+source(here::here("R", "figures.R"))
 
 Sys.setenv(
   NIIDIR = here::here("data-raw","hcp-niis")
@@ -146,5 +147,9 @@ list(
   tar_target(n_parcels, c(100, 200, 300, 400, 500, 600, 700, 800, 900, 1000)),
   tar_target(at_list, make_atlas_full(n_parcels=n_parcels), pattern = map(n_parcels)),
   tar_target(space_, add_labels(space=space0, at=at_list), pattern = map(at_list)),
-  tar_target(space2, space_, format = format_arrow_table())
+  tar_target(space2, space_, format = format_arrow_table()),
+  tar_target(
+    data_peak_study_to_study, 
+    make_data_peak_study_to_study(at=at, space=space, gold_peaks=gold_peaks), 
+    format = "parquet")
 )
