@@ -14,6 +14,7 @@ source(here::here("R", "hcp.R"))
 source(here::here("R", "ptfce.R"))
 source(here::here("R", "figures.R"))
 source(here::here("R", "pairwise.R"))
+source(here::here("R", "model.R"))
 
 Sys.setenv(
   NIIDIR = here::here("data-raw","hcp-niis-ptfce")
@@ -236,19 +237,11 @@ list(
     rois_pop, 
     format = format_arrow_table()
   ),
-  tar_target(
-    data_topo_gold_to_study,
-    make_data_topo_gold_to_study(tfce, tfce_pop, method="spearman"),
-    cross(map(tfce))),
   tar_target(ContrastNames, contrasts$ContrastName),
   tar_target(
     pairwise, 
     cor_pairwise_ptfce(tfce, ContrastNames, n_sub, method="spearman"), 
     cross(n_sub, ContrastNames)),
-  tar_target(
-    data_topo_study_to_study, 
-    make_data_topo_study_to_study(pairwise=pairwise), 
-    format = "parquet"),
   tar_target(dataset, here::here("data-raw/hcp-parquet")),
   tarchetypes::tar_group_by(
     subtask, 
@@ -344,21 +337,21 @@ list(
   ),
   tar_target(
     space_sub,
-  dplyr::left_join(
-    sub_peaks, 
-    gold_peaks, 
-    by=c("Task", "CopeNumber", "ContrastName"), 
-    suffix=c(".study", ".ref")) |>
-    dplyr::mutate(
-      augmented = purrr::map2(
-        m.study, m.ref,
-        ~augment_distance(
-          study = .x,
-          reference = .y,
-          vox_mm = 2
+    dplyr::left_join(
+      sub_peaks, 
+      gold_peaks, 
+      by=c("Task", "CopeNumber", "ContrastName"), 
+      suffix=c(".study", ".ref")) |>
+      dplyr::mutate(
+        augmented = purrr::map2(
+          m.study, m.ref,
+          ~augment_distance(
+            study = .x,
+            reference = .y,
+            vox_mm = 2
+          )
         )
-      )
-    ) |>
+      ) |>
       dplyr::select(augmented, Task, CopeNumber) |>
       tidyr::unnest(augmented)
   ),
@@ -368,5 +361,70 @@ list(
       at=at, 
       space_sub=space_sub, 
       gold_peaks=gold_peaks), 
+    format = "parquet"),
+  tar_target(
+    tfce_pop_fsl,
+    test |>
+      dplyr::mutate(
+        tmp = purrr::map2(
+          avail, ContrastName,
+          ~do_tfce_pop2(.x, n_sub=length(.x), iter=0, storage_dir=Sys.getenv("NIIDIR"), flags=.y))) |>
+      tidyr::unnest(tmp),
+    pattern = map(test)),
+  tar_target(data_topo_gold, get_pop_d(tfce_pop_fsl)),
+  tar_target(
+    tfce_fsl,
+    test |>
+      dplyr::mutate(
+        tmp = purrr::map2(
+          avail, ContrastName,
+          ~do_tfce2(.x, n_sub=n_sub, iter=iter, n=1, storage_dir=Sys.getenv("NIIDIR"), flags=.y))) |>
+      tidyr::unnest(tmp),
+    pattern = cross(n_sub, iter, map(test))
+  ),
+  tar_target(
+    data_topo_gold_to_study,
+    make_data_topo_gold_to_study(tfce_fsl, tfce_pop_fsl, method="spearman"),
+    cross(map(tfce_fsl))),
+  tar_target(
+    data_topo_study_to_study, 
+    make_data_topo_study_to_study(pairwise=pairwise), 
+    format = "parquet"),
+  tar_target(
+    data_model_gold_gold_to_study,
+    make_data_model_gold_gold_to_study(
+      dataset_all="/home/ubuntu/mnt/meta/act_preds/data/out-all",
+      dataset="/home/ubuntu/mnt/meta/act_preds/data/out"),
+    format = "parquet"
+  ),
+  tar_target(
+    data_model_study_to_study,
+    make_data_model_study_to_study(
+      dataset="/home/ubuntu/mnt/meta/act_preds/data/out"),
+    format = "parquet"
+  ),
+  tar_target(
+    data_model_study_to_study2,
+    make_data_model_study_to_study2(
+      dataset="/home/ubuntu/mnt/meta/act_preds/data/out"),
+    format = "parquet"
+  ),
+  tar_target(
+    data_model_sub_to_sub,
+    make_data_model_sub_to_sub(
+      parquet_files = fs::dir_ls(
+        "/home/ubuntu/mnt/meta/act_preds", 
+        glob = "*task*parquet")),
+    format = "parquet"
+  ),
+  tar_target(
+    pop_cor_region, 
+    cor_w_pop_by_region(
+      tfce=tfce_fsl, 
+      tfce_pop=tfce_pop_fsl, 
+      at=at, 
+      method="spearman"), 
+    map(tfce_fsl),
     format = "parquet")
 )
+

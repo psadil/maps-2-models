@@ -233,35 +233,5 @@ cor_pairwise_ptfce <- function(tfce, ContrastName, n_sub, method="spearman"){
     tidyr::unnest(rhos)
 }
 
-make_data_topo_gold_to_study <- function(tfce, tfce_pop, method = "spearman"){
-  # tfce <- tfce |>
-  #   dplyr::filter(stringr::str_detect(tfce_corrp_tstat, glue::glue("flags-{ContrastName}_tfce")))
-  tfce_pop <- tfce_pop |>
-    dplyr::semi_join(tfce, by = c("ContrastName"))
-  checkmate::assert_data_frame(tfce, nrows = 1)
-  checkmate::assert_data_frame(tfce_pop, nrows = 1)
-  
-  gray <- to_tbl(MNITemplate::getMNISegPath(res="2mm")) |>
-    dplyr::filter(value==2) |>
-    dplyr::select(-value)
-  
-  study <- get_pairs(stringr::str_replace(tfce$tstat, "/_", "_"), tfce$n_sub) |>
-    mask() |>
-    dplyr::semi_join(gray, by=c("x","y","z")) |>
-    dplyr::mutate(study = cope / sigma * correct_d(tfce$n_sub)) |>
-    dplyr::select(x, y, z, study)
-  
-  test <- get_pairs(stringr::str_replace(tfce_pop$tstat, "/_", "_"), tfce_pop$n_sub) |>
-    mask() |>
-    dplyr::semi_join(gray, by=c("x","y","z")) |>
-    dplyr::mutate(test = cope / sigma * correct_d(tfce_pop$n_sub)) |>
-    dplyr::select(x, y, z, test)
-  
-  tfce |>
-    dplyr::select(Task, CopeNumber, ContrastName, iter, n_sub) |>
-    dplyr::bind_cols(
-      dplyr::left_join(study, test, by = c("x", "y", "z")) |>
-        dplyr::summarise(rho = cor(study, test, method = .env$method, use = "complete.obs"))
-    ) |>
-    dplyr::mutate(method = .env$method)
-}
+
+

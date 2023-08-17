@@ -73,26 +73,17 @@ make_data_peak_study_to_study <- function(at, space, gold_peaks){
     dplyr::select(-data) |>
     tidyr::unnest(d)
   
-  # tmp |>
-  #   dplyr::filter(!is.na(n_sub)) |>
-  #   ggplot(aes(y=n_sub, x=d)) +
-  #   facet_wrap(~Task) +
-  #  ggdist::stat_dots(quantiles = 50) +
-  #  ylab("N Sub") +
-  #  scale_x_continuous(
-  #    "Distance Between Highest Peaks") +
-  #  theme_gray(base_size = 9)
 }
 
 make_data_topo_study_to_study <- function(pairwise){
   pairwise |>
-    dplyr::filter(y > x, method=="pearson") |>
+    dplyr::filter(y > x) |>
     dplyr::mutate(f = atanh(r)) |>
     dplyr::group_by(Task, n_sub, ContrastName, method) |>
     dplyr::summarise(
       f = mean(f),
       r = mean(r),
-      N = n(),
+      N = dplyr::n(),
       .groups = "drop"
     ) |>
     dplyr::mutate(
@@ -250,4 +241,37 @@ make_data_peak_study_to_gold <- function(at, gold_peaks, space){
       n_sub = factor(
         n_sub, 
         levels = c("N Sub: 20", "N Sub: 40", "N Sub: 60", "N Sub: 80", "N Sub: 100"))) 
+}
+
+make_data_topo_gold_to_study <- function(tfce, tfce_pop, method = "spearman"){
+  # tfce <- tfce |>
+  #   dplyr::filter(stringr::str_detect(tfce_corrp_tstat, glue::glue("flags-{ContrastName}_tfce")))
+  tfce_pop <- tfce_pop |>
+    dplyr::semi_join(tfce, by = c("ContrastName"))
+  checkmate::assert_data_frame(tfce, nrows = 1)
+  checkmate::assert_data_frame(tfce_pop, nrows = 1)
+  
+  gray <- to_tbl(MNITemplate::getMNISegPath(res="2mm")) |>
+    dplyr::filter(value==2) |>
+    dplyr::select(-value)
+  
+  study <- get_pairs(stringr::str_replace(tfce$tstat, "/_", "_"), tfce$n_sub) |>
+    mask() |>
+    dplyr::semi_join(gray, by=c("x","y","z")) |>
+    dplyr::mutate(study = cope / sigma * correct_d(tfce$n_sub)) |>
+    dplyr::select(x, y, z, study)
+  
+  test <- get_pairs(stringr::str_replace(tfce_pop$tstat, "/_", "_"), tfce_pop$n_sub) |>
+    mask() |>
+    dplyr::semi_join(gray, by=c("x","y","z")) |>
+    dplyr::mutate(test = cope / sigma * correct_d(tfce_pop$n_sub)) |>
+    dplyr::select(x, y, z, test)
+  
+  tfce |>
+    dplyr::select(Task, CopeNumber, ContrastName, iter, n_sub) |>
+    dplyr::bind_cols(
+      dplyr::left_join(study, test, by = c("x", "y", "z")) |>
+        dplyr::summarise(rho = cor(study, test, method = .env$method, use = "complete.obs"))
+    ) |>
+    dplyr::mutate(method = .env$method)
 }

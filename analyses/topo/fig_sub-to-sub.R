@@ -31,7 +31,7 @@ ggsave(
 rhos |>
   filter(!is.na(rho), stringr::str_detect(task, "EMOTION", TRUE)) |>
   ggplot(aes(x=rho, y=task)) +
-  ggdist::stat_dots(quantiles = 1000) +
+  ggdist::stat_dots(quantiles = 100) +
   ylab("Task")  +
   xlab("Pairwise (Sub-Sub) Correlation")
 

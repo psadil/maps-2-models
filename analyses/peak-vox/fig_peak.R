@@ -74,6 +74,6 @@ p <- a + b + cc +
 ggsave(
   "analyses/figures/peaks.png", 
   p,
-  width = 8, 
+  width = 9, 
   height = 4,
   device = ragg::agg_png)
