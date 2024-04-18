@@ -15,20 +15,29 @@ targets::tar_load(
     data_model_sub_to_sub))
 
 a <- data_model_gold_gold_to_study |> 
+  filter(measure=="PMAT24_A_CR", type=="simulation", stringr::str_detect(task, "EMOTION", TRUE)) |>
   ggplot(aes(x=n_sub, y=avg)) +
   facet_wrap(~task) +
-  geom_line(aes(group=type)) +
-  geom_point() +
-  geom_errorbar(aes(ymin=avg-sd, ymax=avg+sd)) +
+  geom_line() +
+  geom_errorbar(aes(ymin=lower, ymax=upper)) +
+  geom_point(
+    mapping = aes(x=n_sub, y=statistic_rep),
+    color="gold", 
+    data=filter(
+      data_model_gold_gold_to_study, 
+      measure=="PMAT24_A_CR", 
+      type=="gold",
+      stringr::str_detect(task, "EMOTION", TRUE))) +
   scale_x_log10("N Sub") +
-  ylab("Average Rank Correlation (+-SD)\nPrediction-Truth (gF)") +
+  ylab("Average Rank Correlation (CI)\nPrediction-Truth (gF)") +
   theme(legend.position = "bottom")
 
 b <- data_model_study_to_study |>
-  filter(Model == "ICC(2,1)") |>
-  ggplot(aes(x=n_sub, y=ICC)) +
-  geom_line(aes(linetype=Measure)) +
+  filter(measure=="PMAT24_A_CR", stringr::str_detect(task, "EMOTION", TRUE)) |>
+  ggplot(aes(x=n_sub, y=icc, color=type), alpha=0.5) +
   facet_wrap(~task) +
+  geom_line() +
+  geom_errorbar(aes(ymin=lower, ymax=upper)) +
   xlab("N Sub") +
   ylab("ICC(2,1)")
 
@@ -42,6 +51,7 @@ b <- data_model_study_to_study |>
 #   ylab("N Sub")
 
 cc <- data_model_sub_to_sub |>
+  filter(stringr::str_detect(task, "EMOTION", TRUE)) |>
   ggplot(aes(x=r, y=task)) +
   ggdist::stat_dots(quantiles = 100) +
   ylab("Task") +

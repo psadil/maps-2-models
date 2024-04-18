@@ -393,28 +393,26 @@ list(
   tar_target(
     data_model_gold_gold_to_study,
     make_data_model_gold_gold_to_study(
-      dataset_all="/home/ubuntu/mnt/meta/act_preds/data/out-all",
-      dataset="/home/ubuntu/mnt/meta/act_preds/data/out"),
+      dataset_gold="/Users/psadil/git/manuscripts/maps-to-models/act_preds/data/out-perm-gold-cpm-sametest",
+      dataset="/Users/psadil/git/manuscripts/maps-to-models/act_preds/data/out-perm-cpm-sametest"),
     format = "parquet"
   ),
   tar_target(
     data_model_study_to_study,
     make_data_model_study_to_study(
-      dataset="/home/ubuntu/mnt/meta/act_preds/data/out"),
+      dataset="/Users/psadil/git/manuscripts/maps-to-models/act_preds/data/out-perm-cpm-preds-sametest"),
     format = "parquet"
   ),
-  tar_target(
-    data_model_study_to_study2,
-    make_data_model_study_to_study2(
-      dataset="/home/ubuntu/mnt/meta/act_preds/data/out"),
-    format = "parquet"
-  ),
+  # tar_target(
+  #   data_model_study_to_study2,
+  #   make_data_model_study_to_study2(
+  #     dataset="/Users/psadil/git/manuscripts/maps-to-models/act_preds/data/out"),
+  #   format = "parquet"
+  # ),
   tar_target(
     data_model_sub_to_sub,
     make_data_model_sub_to_sub(
-      parquet_files = fs::dir_ls(
-        "/home/ubuntu/mnt/meta/act_preds", 
-        glob = "*task*parquet")),
+      features="/Users/psadil/git/meta/act_preds/data/cpm-difumo2/part-0.parquet"),
     format = "parquet"
   ),
   tar_target(
