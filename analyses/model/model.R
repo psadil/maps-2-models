@@ -39,7 +39,7 @@ b <- data_model_study_to_study |>
   geom_line() +
   geom_errorbar(aes(ymin=lower, ymax=upper)) +
   xlab("N Sub") +
-  ylab("ICC(2,1)")
+  ylab("ICC")
 
 # b <- data_model_study_to_study2 |>
 #   ggplot(aes(x=s, y=n_sub)) +

@@ -1,5 +1,0 @@
-#!/bin/bash
-
-#Rscript -e "targets::tar_make_future(script='_tfce2.R', workers = 30, store='_tfce2')"
-Rscript -e "targets::tar_make(script='_tfce2.R', store='_tfce2')"
-

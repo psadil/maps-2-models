@@ -141,7 +141,7 @@ get_ptfce_maxes_sub <- function(
   
   m <- RNifti::readNifti(mask)
   volume <- sum(m)
-
+  
   cls1 <- fslr::fslcluster(
     zstat, 
     threshold = cluster_thresh,
@@ -172,10 +172,13 @@ do_roi <- function(
   }
   # zs <- stringr::str_replace(copes, "cope1.nii.gz", "zstat1.nii.gz")
   names(copes) <- seq_along(copes)
-
-  purrr::map_dfr(copes, to_tbl, .id = "sub") |>
-    dplyr::left_join(at, by = dplyr::join_by(x, y, z)) |>
-    dplyr::filter(!is.na(label)) |>
+  
+  purrr::map_dfr(
+    copes, 
+    ~to_tbl(.x) |> 
+      dplyr::left_join(at, by = dplyr::join_by(x, y, z)) |>
+      dplyr::filter(!is.na(label)), 
+    .id = "sub") |>
     dplyr::summarise(
       Z = mean(value),
       sd = sd(value),

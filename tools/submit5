@@ -1,6 +1,0 @@
-#!/bin/bash
-
-#5 implies cope5
-
-Rscript -e "targets::tar_make_future(space, script='_tfce.R', workers = 30, store='_tfce')"
-#Rscript -e "targets::tar_make(space, script='_tfce.R', store='_tfce')"

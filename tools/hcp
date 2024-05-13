@@ -1,8 +1,0 @@
-#!/bin/bash
-
-#export FSLDIR=/home/ubuntu/mambaforge
-# export FSLOUTPUTTYPE=NIFTI_GZ
-
-#Rscript -e "targets::tar_make_future(sub_peaks, script='_hcp_ptfce.R', workers = 14, store='_hcp_ptfce')"
-Rscript -e "targets::tar_make(data_peak_sub_to_sub, script='_hcp_ptfce.R', store='_hcp_ptfce')"
-
