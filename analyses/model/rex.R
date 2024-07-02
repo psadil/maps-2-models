@@ -1,4 +1,3 @@
-
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -10,7 +9,7 @@ library(forcats)
 Sys.setenv(TAR_PROJECT = "hcp_ptfce")
 
 
-dataset<-"/home/ubuntu/mnt/meta/act_preds/data/out"
+dataset <- "/home/ubuntu/mnt/meta/act_preds/data/out"
 
 d <- arrow::open_dataset(dataset) |>
   dplyr::select(sub, fold, n_sub, task, y_hat) |>
@@ -19,8 +18,10 @@ d <- arrow::open_dataset(dataset) |>
   mutate(
     rex = map(
       data,
-      ~ReX::lme_ICC_2wayR(data=.x$y_hat, subID = .x$sub, session = .x$fold) |>
-        as_tibble())) |>
+      ~ ReX::lme_ICC_2wayR(data = .x$y_hat, subID = .x$sub, session = .x$fold) |>
+        as_tibble()
+    )
+  ) |>
   select(-data) |>
   unnest(rex)
 
@@ -42,10 +43,11 @@ d |>
       "ICC.c" ~ "ICC(2,1)",
       "ICCk.a" ~ "ICC(2,k)",
       "ICCk.c" ~ "ICC(2,k)"
-    )) |>
+    )
+  ) |>
   filter(Model == "ICC(2,k)") |>
-  ggplot(aes(x=n_sub, y=ICC)) +
-  geom_line(aes(linetype=Measure)) +
+  ggplot(aes(x = n_sub, y = ICC)) +
+  geom_line(aes(linetype = Measure)) +
   facet_wrap(~task) +
   xlab("N Sub") +
   ylab("ICC(2,k)")

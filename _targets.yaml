@@ -1,28 +1,4 @@
-tfce0:
-  store: _tfce0
-  script: _tfce0.R
-tfce:
-  store: _tfce
-  script: _tfce.R
-tfce1:
-  store: _tfce1
-  script: _tfce1.R
-tfce2:
-  store: _tfce2
-  script: _tfce2.R
-bias:
-  store: _bias
-  script: _tfcebias.R
-hcp:
-  store: _hcp
-  script: _hcp.R
-space:
-  store: _space
-  script: _space.R
 hcp_ptfce:
-  store: _hcp_ptfce
+  store: /Users/psadil/Library/CloudStorage/OneDrive-JohnsHopkins/Documents/manuscripts/maps-to-models/meta/_hcp_ptfce
   script: _hcp_ptfce.R
-pairwise:
-  store: _pairwise
-  script: _pairwise.R
 

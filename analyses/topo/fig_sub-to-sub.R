@@ -16,27 +16,29 @@ rhos |>
     rho = mean(rho),
     .by = c(probe, task)
   ) |>
-  ggplot(aes(x=rho, y=task)) +
+  ggplot(aes(x = rho, y = task)) +
   ggdist::stat_dots(quantiles = 50) +
-  ylab("Task")  +
+  ylab("Task") +
   xlab("Pairwise (Sub-Sub) Avgerage Correlation")
 
 ggsave(
-  "analyses/figures/topo_sub-to-sub_rho.png", 
+  "analyses/figures/topo_sub-to-sub_rho.png",
   device = ragg::agg_png,
   width = 4,
-  height = 4)
+  height = 4
+)
 
 
 rhos |>
   filter(!is.na(rho), stringr::str_detect(task, "EMOTION", TRUE)) |>
-  ggplot(aes(x=rho, y=task)) +
+  ggplot(aes(x = rho, y = task)) +
   ggdist::stat_dots(quantiles = 100) +
-  ylab("Task")  +
+  ylab("Task") +
   xlab("Pairwise (Sub-Sub) Correlation")
 
 ggsave(
-  "analyses/figures/topo_sub-to-sub_rho-noavg.png", 
+  "analyses/figures/topo_sub-to-sub_rho-noavg.png",
   device = ragg::agg_png,
   width = 4,
-  height = 4)
+  height = 4
+)

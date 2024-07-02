@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH -J hcp-difumo
+#SBATCH --array=0-1
+#SBATCH --output hcp-difumo_%a.log
+#SBATCH -t 0:30:00
+#SBATCH --mem=24G
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+
+source ~/.bashrc
+
+mamba activate act_preds
+
+python difumo-connectivity.py "${SLURM_ARRAY_TASK_ID}" --in-dir /dcs04/legacy-dcs01-oasis/hpc/ --confounds
+
+python difumo-connectivity.py "${SLURM_ARRAY_TASK_ID}" --in-dir /dcs04/legacy-dcs01-oasis/hpc/ --no-confounds

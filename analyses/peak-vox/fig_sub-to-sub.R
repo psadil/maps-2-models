@@ -13,7 +13,7 @@ Sys.setenv(TAR_PROJECT = "hcp")
 
 gold_peaks <- targets::tar_read(gold_peaks) |>
   select(Task, m) |>
-  mutate(m = map(m, ~mutate(.x, peak_i = row_number(desc(Value))))) |>
+  mutate(m = map(m, ~ mutate(.x, peak_i = row_number(desc(Value))))) |>
   unnest(m) |>
   filter(peak_i < 11) |>
   distinct(Task, x, y, z, peak_i)

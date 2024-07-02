@@ -13,7 +13,8 @@ targets::tar_load(pop_cor_region)
 p <- pop_cor_region |>
   mutate(
     f = atanh(rho),
-    `Network Name` = if_else(is.na(`Network Name`) & !is.na(label), "subcortical", `Network Name`)) |>
+    `Network Name` = if_else(is.na(`Network Name`) & !is.na(label), "subcortical", `Network Name`)
+  ) |>
   filter(!is.na(rho) & is.finite(f)) |>
   group_by(Task, n_sub, ContrastName, method, `Network Name`, iter) |>
   summarise(
@@ -23,17 +24,28 @@ p <- pop_cor_region |>
   ) |>
   mutate(
     rr = tanh(f),
-    `N Sub` = factor(n_sub)) |>
-  ggplot(aes(y=rr, x=`N Sub`, color = `Network Name`)) +
+    `N Sub` = factor(n_sub)
+  ) |>
+  ggplot(aes(y = rr, x = `N Sub`, color = `Network Name`)) +
   facet_wrap(~Task) +
   geom_boxplot(outlier.alpha = 0.25) +
-  scale_color_viridis_d(option="turbo") +
+  scale_color_viridis_d(option = "turbo") +
   ylab("Rank Correlation with Reference") +
   theme(legend.position = "bottom")
 
 ggsave(
-  "analyses/figures/supplementary/topo-bynetwork.png", 
+  "analyses/figures/topo-bynetwork.png",
   p,
   width = 6,
   height = 4,
-  device = ragg::agg_png)
+  device = ragg::agg_png
+)
+
+
+tikzDevice::tikz(
+  "analyses/figures/topo-bynetwork.tex",
+  width=6,
+  height=4)
+p
+dev.off()
+

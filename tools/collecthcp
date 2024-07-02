@@ -5,6 +5,7 @@ rsync \
     -ah \
     --info=progress2 \
     --include="cope1.nii.gz" \
+    --include="zstat1.nii.gz" \
     --include="tfMRI_GAMBLING_hp200_s4_level2vol.feat/cope6.feat" \
     --include="tfMRI_LANGUAGE_hp200_s4_level2vol.feat/cope3.feat" \
     --include="tfMRI_MOTOR_hp200_s4_level2vol.feat/cope7.feat" \
@@ -42,3 +43,46 @@ rsync \
     --exclude=99_100307 \
     /dcs04/legacy-dcs01-oasis/hpc/ /fastscratch/myscratch/pssadil/hcp/
     
+rsync \
+    -rlpgoDh \
+    --info=progress2 \
+    --include="tfMRI*LR.nii.gz" \
+    --include="tfMRI*RL.nii.gz" \
+    --include=Movement_Regressors.txt \
+    --exclude=EVs \
+    --exclude=RibbonVolumeToSurfaceMapping \
+    --exclude=tfMRI_EMOTION \
+    --exclude=tfMRI_GAMBLING \
+    --exclude=tfMRI_LANGUAGE \
+    --exclude=tfMRI_MOTOR \
+    --exclude=tfMRI_RELATIONAL \
+    --exclude=tfMRI_SOCIAL \
+    --exclude=tfMRI_WM \
+    --exclude="*txt" \
+    --exclude="*gz" \
+    --exclude="*feat" \
+    --exclude="*gii" \
+    --exclude="*spec" \
+    --exclude="*mat" \
+    --exclude="*design*" \
+    --exclude="logfile" \
+    --exclude="*REST*" \
+    --exclude=ROIs \
+    --exclude=Native \
+    --exclude="*nii" \
+    --exclude="*json" \
+    --exclude="*fsf" \
+    --exclude="core*" \
+    --exclude=unprocessed \
+    --exclude=release-notes \
+    --exclude=T1w \
+    --exclude=xfms \
+    --exclude=fsaverage_LR32k \
+    --exclude=v \
+    --exclude=.xdlm \
+    --exclude="*sh" \
+    --exclude=HCP500_Parcellation_Timeseries_Netmats \
+    --exclude=HCP_disk1 \
+    --exclude=HCP_disk1_NN \
+    --exclude=99_100307 \
+    /dcs04/legacy-dcs01-oasis/hpc/ /fastscratch/myscratch/pssadil/hcp/
