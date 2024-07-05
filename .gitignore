@@ -38,7 +38,7 @@ _hcp.bak1
 
 data-raw/Parcellation
 data-raw/1000subjects_reference
-data-raw/hcp
+data-raw/hcp/disk*
 
 ohbm2022
 analyses/figures

@@ -13,6 +13,7 @@ source(here::here("R", "ptfce.R"))
 source(here::here("R", "figures.R"))
 source(here::here("R", "pairwise.R"))
 source(here::here("R", "model.R"))
+source(here::here("R", "manuscript.R"))
 
 Sys.setenv(
   NIIDIR = here::here("data-raw", "hcp-niis-ptfce")
@@ -214,9 +215,9 @@ list(
       resample = FALSE,
       enhance = FALSE
     )#,
-#    resources = tar_resources(
-#      crew = tar_resources_crew(controller = "small")
-#    )
+    #    resources = tar_resources(
+    #      crew = tar_resources_crew(controller = "small")
+    #    )
   ),
   tar_target(
     active0_null,
@@ -532,13 +533,143 @@ list(
     ),
     map(tfce_fsl),
     format = "parquet"
+  ),
+  tar_target(
+    roi,
+    make_roi(
+      data_roi_study_to_gold,
+      data_roi_study_to_study,
+      data_roi_sub_to_sub,
+      file="analyses/figures/roi.tex"
+    ),
+    format = "file",
+    packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    prop_active_most_active_roi_ptfce_null,
+    make_prop_active_most_active_roi_ptfce_null(
+      at_list=at_list, 
+      active_null=active_null, 
+      iter=iter, 
+      gold_tested=gold_tested,
+      file="analyses/figures/prop-active-most-active-roi-ptfce-null.tex"
+    ),
+    format = "file",
+    packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    prop_active_most_active_roi_ptfce,
+    make_prop_active_most_active_roi_ptfce(
+      file="analyses/figures/prop-active-most-active-roi-ptfce.tex",
+      data_roi_study_to_gold=data_roi_study_to_gold
+    ),
+    format = "file",
+    packages = c("ggplot2")
+  ),
+  tar_target(
+    peaks,
+    make_peaks(
+      data_peak_study_to_gold=data_peak_study_to_gold, 
+      data_peak_study_to_study=data_peak_study_to_study, 
+      data_peak_sub_to_sub=data_peak_sub_to_sub,
+      file="analyses/figures/peaks.tex"
+    ),
+    format = "file",
+    packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    peak_bysize,
+    make_peak_bysize(
+      file="analyses/figures/peak-bysize.tex",
+      space=space,
+      data_topo_gold=data_topo_gold,
+      gold_peaks=gold_peaks,
+      at=at
+    ),
+    format = "file",
+    packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    peak_bynetwork,
+    make_peak_bynetwork(
+      file="analyses/figures/peak-bynetwork.tex",
+      space=space,
+      data_topo_gold=data_topo_gold,
+      gold_peaks=gold_peaks,
+      at=at
+    ),
+    format = "file",
+    packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    topo,
+    make_topo(
+      file="analyses/figures/topo.tex",
+      data_topo_gold=data_topo_gold,
+      data_topo_gold_to_study=data_topo_gold_to_study,
+      data_topo_study_to_study=data_topo_study_to_study,
+      data_topo_sub_to_sub=data_topo_sub_to_sub
+    ),
+    format = "file",
+    packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    prop_effect_size,
+    make_prop_effect_size(
+      file="analyses/figures/prop_effect_size.tex",
+      data_topo_gold=data_topo_gold
+    ),
+    format = "file",
+    packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    topo_bynetwork,
+    make_topo_bynetwork(
+      file="analyses/figures/topo_bynetwork.tex",
+      pop_cor_region=pop_cor_region
+    ),
+    format = "file",
+    packages = c("ggplot2")
+  ),
+  tar_target(
+    model,
+    make_model(
+      file="analyses/figures/model.tex",
+      data_model_gold_gold_to_study=data_model_gold_gold_to_study,
+      data_model_study_to_study=data_model_study_to_study,
+      data_model_sub_to_sub=data_model_sub_to_sub
+    ),
+    format = "file",
+    packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    all_cog,
+    make_all_cog(
+      file="analyses/figures/all_cog.tex",
+      data_model_gold_gold_to_study=data_model_gold_gold_to_study
+    ),
+    format = "file",
+    packages = c("ggplot2")
+  ),
+  tar_target(
+    model_all_consistency,
+    make_model_all_icc(
+      file="analyses/figures/model_all_consistency.tex",
+      data_model_study_to_study=data_model_study_to_study,
+      type="agreement"
+    ),
+    format = "file",
+    packages = c("ggplot2")
+  ),
+  tar_target(
+    model_all_agreement,
+    make_model_all_icc(
+      file="analyses/figures/model_all_agreement.tex",
+      data_model_study_to_study=data_model_study_to_study,
+      type="agreement"
+    ),
+    format = "file",
+    packages = c("ggplot2")
   )
-  # tar_target(
-  #   data_model_gold_gold_to_study_ukb,
-  #   make_data_model_gold_gold_to_study_ukb(
-  #     dataset_gold = here::here("data-raw","act_preds/data/out-perm-gold-ukb-preds-sametest"),
-  #     dataset = here::here("data-raw", "act_preds/data/out-perm-ukb-preds-sametest")
-  #   ),
-  #   format = "parquet"
-  # )
 )
+
