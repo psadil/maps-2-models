@@ -1,14 +1,13 @@
-
 make_roi <- function(
-    data_roi_study_to_gold, 
-    data_roi_study_to_study, 
+    data_roi_study_to_gold,
+    data_roi_study_to_study,
     data_roi_sub_to_sub,
-    file){
-  
+    file) {
   a <- data_roi_study_to_gold |>
     dplyr::filter(n_parcels == 400) |>
     ggplot2::ggplot(
-      ggplot2::aes(x = n_sub, y = prop, group = label, color = abs(d))) +
+      ggplot2::aes(x = n_sub, y = prop, group = label, color = abs(d))
+    ) +
     ggplot2::geom_point(alpha = 0.2) +
     ggplot2::geom_line(alpha = 0.2) +
     facet_wrap(~Task) +
@@ -29,10 +28,11 @@ make_roi <- function(
       limits = c(0, NA),
       n.breaks = 3
     )
-  
+
   b <- data_roi_study_to_study |>
     dplyr::filter(
-      forcats::fct_match(n_parcels, "N Parcels: 400")) |>
+      forcats::fct_match(n_parcels, "N Parcels: 400")
+    ) |>
     ggplot(aes(y = n_sub, x = phi, group = n_sub)) +
     facet_wrap(~Task) +
     ggdist::stat_dots(quantiles = 50) +
@@ -43,7 +43,7 @@ make_roi <- function(
       breaks = c(-0.25, 0.5),
       labels = c(-0.25, 0.5)
     )
-  
+
   cc <- data_roi_sub_to_sub |>
     dplyr::mutate(
       Task = factor(Task),
@@ -60,62 +60,54 @@ make_roi <- function(
       breaks = c(-0.75, 0, 0.75),
       labels = c(-0.75, 0, 0.75)
     )
-  
-  p <- a + b + cc +
+
+  a + b + cc +
     patchwork::plot_layout(ncol = 1, heights = c(1, 1.5, 1)) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
     ggplot2::theme_gray(base_size = 8) +
-    ggplot2::theme(
-      legend.position = "bottom",
-      legend.key.size = unit(8, "pt")
-    )
-  
-  tikzDevice::tikz(
-    file,
-    width=3,
-    height=6)
-  p
-  dev.off()
-  
-  file
+      ggplot2::theme(
+        legend.position = "bottom",
+        legend.key.size = unit(8, "pt")
+      )
 }
 
-get_max <- function(q){
+get_max <- function(q) {
   x <- qs::qread(q)
   to_tbl0(x$Z, measure = "Z") |> mask()
 }
 
 
 make_prop_active_most_active_roi_ptfce_null <- function(
-    at_list, 
-    active_null, 
-    iter, 
+    at_list,
+    active_null,
+    iter,
     gold_tested,
-    file,
-    active_threshold = 0.02){
-  
+    active_threshold = 0.02) {
   n_sims <- dplyr::n_distinct(iter)
-  
+
   # regions with at least one voxel active
   out_null <- active_null |>
     dplyr::collect() |>
     dplyr::left_join(
-      at_list, 
-      by = dplyr::join_by(x,y,z), 
-      relationship = "many-to-many") |>
+      at_list,
+      by = dplyr::join_by(x, y, z),
+      relationship = "many-to-many"
+    ) |>
     dplyr::distinct(
       n_sub, iter, label, `Label Name`,
-      `Full component name`, n_parcels) |>
+      `Full component name`, n_parcels
+    ) |>
     dplyr::count(
-      n_sub, 
-      label, 
+      n_sub,
+      label,
       `Label Name`,
-      `Full component name`, 
-      n_parcels) |>
+      `Full component name`,
+      n_parcels
+    ) |>
     dplyr::mutate(prop = n / n_sims)
-  
+
   gold_null <- gold_tested |>
-    dplyr::filter(Task=="WM") |>
+    dplyr::filter(Task == "WM") |>
     dplyr::mutate(
       d = statistic / sqrt(n_sub),
       active = abs(d) > active_threshold
@@ -127,38 +119,43 @@ make_prop_active_most_active_roi_ptfce_null <- function(
     dplyr::filter(r < 11) |>
     dplyr::select(Task, n_parcels, label, d) |>
     dplyr::mutate(
-      l=label |>
+      l = label |>
         factor() |>
         as.numeric() |>
-        factor())
-  
-  p <- out_null |>
+        factor()
+    )
+
+  out_null |>
     dplyr::semi_join(dplyr::distinct(gold_null, l, label, n_parcels)) |>
     dplyr::right_join(
-      dplyr::distinct(gold_null, label, n_parcels, l) |> 
+      dplyr::distinct(gold_null, label, n_parcels, l) |>
         tidyr::crossing(
-          dplyr::distinct(out_null, n_sub))) |>
+          dplyr::distinct(out_null, n_sub)
+        )
+    ) |>
     dplyr::filter(n_parcels %in% c(200, 400, 600, 800, 1000)) |>
     dplyr::mutate(
       n_parcels = factor(n_parcels, levels = unique(n_parcels) |> sort()),
       n_parcels = forcats::fct_relabel(
-        n_parcels, 
-        .fun = ~glue::glue("N Parcels: {.x}")),
+        n_parcels,
+        .fun = ~ glue::glue("N Parcels: {.x}")
+      ),
       propr = dplyr::if_else(is.na(prop), 0, prop)
     ) |>
     dplyr::mutate(prop = dplyr::if_else(is.na(prop), 0, prop)) |>
-    ggplot(aes(x=n_sub, y=prop, group=l)) +
+    ggplot(aes(x = n_sub, y = prop, group = l)) +
     geom_ribbon(
       aes(
-        ymin=qbeta(0.05/2, 5, 100-5+1), 
-        ymax=qbeta(1-0.05/2, 5, 100-5)
-      ), 
-      alpha=0.01, 
-      fill="lightblue",
+        ymin = qbeta(0.05 / 2, 5, 100 - 5 + 1),
+        ymax = qbeta(1 - 0.05 / 2, 5, 100 - 5)
+      ),
+      alpha = 0.01,
+      fill = "lightblue",
       linetype = "dashed",
-      color = "black") +
-    geom_point(show.legend = FALSE, alpha=0.2) +
-    geom_line(show.legend = FALSE, alpha=0.2) +
+      color = "black"
+    ) +
+    geom_point(show.legend = FALSE, alpha = 0.2) +
+    geom_line(show.legend = FALSE, alpha = 0.2) +
     facet_wrap(~n_parcels) +
     scale_y_continuous(
       "Proportion Simulations w/\nActivity in Most Active ROI",
@@ -166,23 +163,14 @@ make_prop_active_most_active_roi_ptfce_null <- function(
     ) +
     xlab("N Sub") +
     theme_gray(base_size = 12)
-  
-  tikzDevice::tikz(
-    file,
-    width=5,
-    height=3)
-  p
-  dev.off()
-  file
 }
 
-make_prop_active_most_active_roi_ptfce <- function(file, data_roi_study_to_gold){
-  
-  p <- data_roi_study_to_gold |>
+make_prop_active_most_active_roi_ptfce <- function(data_roi_study_to_gold) {
+  data_roi_study_to_gold |>
     ggplot(aes(x = n_sub, y = prop, group = label, color = abs(d))) +
     geom_point(alpha = 0.2) +
     geom_line(alpha = 0.2) +
-    facet_grid(n_parcels~Task) +
+    facet_grid(n_parcels ~ Task) +
     scale_y_continuous(
       "Proportion Simulations w/\nActivity in Most Active ROI",
       limits = c(0, 1),
@@ -201,22 +189,12 @@ make_prop_active_most_active_roi_ptfce <- function(file, data_roi_study_to_gold)
       n.breaks = 3
     ) +
     theme(legend.position = "bottom")
-  
-  tikzDevice::tikz(
-    file,
-    width=6,
-    height=6.5)
-  p
-  dev.off()
-  file
 }
 
 make_peaks <- function(
-    file,
-    data_peak_study_to_gold, 
-    data_peak_study_to_study, 
-    data_peak_sub_to_sub){
-  
+    data_peak_study_to_gold,
+    data_peak_study_to_study,
+    data_peak_sub_to_sub) {
   a <- data_peak_study_to_gold |>
     ggplot(aes(x = within, group = peak, y = n_simulations, color = Value)) +
     geom_point(alpha = 0.2) +
@@ -240,7 +218,7 @@ make_peaks <- function(
       limits = c(0, NA),
       n.breaks = 3
     )
-  
+
   b <- data_peak_study_to_study |>
     ggplot(aes(y = n_sub, x = d)) +
     facet_wrap(~Task) +
@@ -249,7 +227,7 @@ make_peaks <- function(
     scale_x_continuous(
       "Distance Between\nHighest Peaks\n(Study-Study)"
     )
-  
+
   cc <- data_peak_sub_to_sub |>
     dplyr::mutate(
       Task = factor(Task),
@@ -261,27 +239,18 @@ make_peaks <- function(
     scale_x_continuous(
       "Distance Between\nHighest Peaks\n(Sub-Sub)"
     )
-  
-  p <- a + b + cc +
+
+  a + b + cc +
     patchwork::plot_layout(nrow = 1, widths = c(4, 2, 1)) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
     theme_gray(base_size = 6) +
-    theme(
-      legend.position = "bottom",
-      legend.key.size = unit(6, "pt")
-    )
-  
-  tikzDevice::tikz(
-    file,
-    width=7,
-    height=3.5)
-  p
-  dev.off()
-  file
+      theme(
+        legend.position = "bottom",
+        legend.key.size = unit(6, "pt")
+      )
 }
 
-make_peak_bysize <- function(file, space, data_topo_gold, gold_peaks, at){
-  
+make_peak_bysize <- function(space, data_topo_gold, gold_peaks, at) {
   gold_peaks_ <- gold_peaks |>
     dplyr::select(Task, m) |>
     tidyr::unnest(m) |>
@@ -300,8 +269,8 @@ make_peak_bysize <- function(file, space, data_topo_gold, gold_peaks, at){
     ) |> # grab highest 10 peaks (distinct labels)
     dplyr::ungroup() |>
     dplyr::distinct(Task, x, y, z, Value)
-  
-  p <- space |>
+
+  space |>
     dplyr::mutate(Value = Value / sqrt(n_pop)) |>
     dplyr::filter(Value > 0.2) |>
     dplyr::group_by(Value, n_sub, corrp_thresh, Task) |>
@@ -329,18 +298,9 @@ make_peak_bysize <- function(file, space, data_topo_gold, gold_peaks, at){
     ) +
     scale_y_log10("avg dist(Gold Standard Peak, Study Peak) (mm)") +
     theme_gray(base_size = 8)
-  
-  tikzDevice::tikz(
-    file,
-    width=5,
-    height=4)
-  p
-  dev.off()
-  file
 }
 
-make_peak_bynetwork <- function(file, space, data_topo_gold, gold_peaks, at){
-  
+make_peak_bynetwork <- function(space, data_topo_gold, gold_peaks, at) {
   gold_peaks_ <- gold_peaks |>
     dplyr::select(Task, m) |>
     tidyr::unnest(m) |>
@@ -359,8 +319,8 @@ make_peak_bynetwork <- function(file, space, data_topo_gold, gold_peaks, at){
     ) |> # grab highest 10 peaks (distinct labels)
     dplyr::ungroup() |>
     dplyr::distinct(Task, x, y, z, Value)
-  
-  p <- space |>
+
+  space |>
     dplyr::mutate(Value = Value / sqrt(n_pop)) |>
     dplyr::filter(Value > 0.2, !is.na(`Network Name`)) |>
     dplyr::group_by(n_sub, corrp_thresh, Task, `Network Name`, iter) |>
@@ -386,9 +346,10 @@ make_peak_bynetwork <- function(file, space, data_topo_gold, gold_peaks, at){
     ggplot(aes(y = `Network Name`, x = d, color = Value)) +
     geom_boxplot(outlier.shape = NA) +
     scattermore::geom_scattermore(
-      pointsize = 5, 
+      pointsize = 5,
       position = position_jitter(width = 0),
-      alpha = 0.5) +
+      alpha = 0.5
+    ) +
     facet_grid(`N Sub` ~ Task) +
     scale_color_viridis_c(
       option = "turbo",
@@ -397,23 +358,13 @@ make_peak_bynetwork <- function(file, space, data_topo_gold, gold_peaks, at){
     ylab("Network") +
     scale_x_continuous("avg dist(Gold Standard Peak, Study Peak) (mm)") +
     theme_gray(base_size = 8)
-  
-  tikzDevice::tikz(
-    file,
-    width=6,
-    height=4)
-  p
-  dev.off()
-  file
 }
 
 make_topo <- function(
-    file,
     data_topo_gold,
     data_topo_gold_to_study,
     data_topo_study_to_study,
-    data_topo_sub_to_sub){
-  
+    data_topo_sub_to_sub) {
   a <- data_topo_gold |>
     ggplot() +
     facet_wrap(~Task) +
@@ -432,7 +383,7 @@ make_topo <- function(
     ) +
     xlab(expression(beta ~ mean)) +
     ylab(expression(beta ~ SD))
-  
+
   b <- data_topo_gold_to_study |>
     dplyr::mutate(`N Sub` = factor(n_sub)) |>
     ggplot(aes(x = rho, y = `N Sub`)) +
@@ -445,7 +396,7 @@ make_topo <- function(
       alpha = 0.1
     ) +
     xlab("Rank Correlation\n(Gold to Study)")
-  
+
   cc <- data_topo_study_to_study |>
     ggplot(aes(x = rr, y = `N Sub`, color = Task)) +
     geom_line(aes(group = Task)) +
@@ -454,7 +405,7 @@ make_topo <- function(
     theme(
       legend.position = "bottom"
     )
-  
+
   d <- data_topo_sub_to_sub |>
     dplyr::filter(!is.na(rho), stringr::str_detect(task, "EMOTION", TRUE)) |>
     ggplot(aes(x = rho, y = task)) +
@@ -463,50 +414,36 @@ make_topo <- function(
     ) +
     ylab("Task") +
     xlab("Pairwise Product-Moment Correlation\n(Sub to Sub)")
-  
-  p <- a + b + cc + d +
+
+  a + b + cc + d +
     patchwork::plot_layout(ncol = 1) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
     theme_gray(base_size = 8) +
-    theme(
-      legend.position = "bottom",
-      legend.key.size = unit(8, "pt")
-    )
-  
-  tikzDevice::tikz(
-    file,
-    width=3.25,
-    height=7)
-  p
-  dev.off()
-  file
+      theme(
+        legend.position = "bottom",
+        legend.key.size = unit(8, "pt")
+      )
 }
 
-make_prop_effect_size <- function(file, data_topo_gold){
-  p <- data_topo_gold |>
+make_prop_effect_size <- function(data_topo_gold) {
+  data_topo_gold |>
     dplyr::filter(!is.na(d)) |>
     dplyr::count(Task, d, name = "N") |>
     dplyr::group_by(Task) |>
     dplyr::mutate(Proportion = N / sum(N)) |>
-    ggplot(aes(x=Task, fill=d, y = Proportion)) +
+    ggplot(aes(x = Task, fill = d, y = Proportion)) +
     geom_col(position = "dodge") +
     guides(fill = guide_legend("Cohen's d")) +
     xlab(NULL) +
     theme_gray(base_size = 14) +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) 
-  
-  tikzDevice::tikz(file, width=4.5, height=3)
-  p
-  dev.off()
-  file
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
 }
 
-make_topo_bynetwork <- function(file, pop_cor_region){
-
-  p <- pop_cor_region |>
+make_topo_bynetwork <- function(pop_cor_region) {
+  pop_cor_region |>
     dplyr::mutate(
       f = atanh(rho),
-      `Network Name` = 
+      `Network Name` =
         dplyr::if_else(is.na(`Network Name`) & !is.na(label), "subcortical", `Network Name`)
     ) |>
     dplyr::filter(!is.na(rho) & is.finite(f)) |>
@@ -526,25 +463,19 @@ make_topo_bynetwork <- function(file, pop_cor_region){
     scale_color_viridis_d(option = "turbo") +
     ylab("Rank Correlation with Reference") +
     theme(legend.position = "bottom")
-  
-  tikzDevice::tikz(file, width=6, height=4)
-  p
-  dev.off()
-  file
 }
 
 make_model <- function(
-    file,
     data_model_gold_gold_to_study,
     data_model_study_to_study,
-    data_model_sub_to_sub){
-
+    data_model_sub_to_sub) {
   a <- data_model_gold_gold_to_study |>
-    dplyr::filter(confounds=="True") |>
+    dplyr::filter(confounds == "True") |>
     dplyr::filter(
-      measure == "PMAT24_A_CR", 
-      type == "simulation", 
-      stringr::str_detect(task, "EMOTION", TRUE)) |>
+      measure == "PMAT24_A_CR",
+      type == "simulation",
+      stringr::str_detect(task, "EMOTION", TRUE)
+    ) |>
     ggplot(aes(x = n_sub, y = avg)) +
     facet_wrap(~task) +
     geom_line() +
@@ -557,53 +488,50 @@ make_model <- function(
         measure == "PMAT24_A_CR",
         type == "gold",
         stringr::str_detect(task, "EMOTION", TRUE),
-        confounds=="True"
+        confounds == "True"
       )
     ) +
     scale_x_log10("N Sub") +
     ylab("Average Rank Correlation (CI)\nPrediction-Truth (gF)") +
     theme(legend.position = "bottom")
-  
+
   b <- data_model_study_to_study |>
-    dplyr::filter(confounds=="True") |>
+    dplyr::filter(confounds == "True") |>
     dplyr::filter(
-      measure == "PMAT24_A_CR", 
-      stringr::str_detect(task, "EMOTION", TRUE)) |>
+      measure == "PMAT24_A_CR",
+      stringr::str_detect(task, "EMOTION", TRUE)
+    ) |>
     ggplot(aes(x = n_sub, y = icc, color = type), alpha = 0.5) +
     facet_wrap(~task) +
     geom_line() +
     geom_errorbar(aes(ymin = lower, ymax = upper)) +
     xlab("N Sub") +
     ylab("ICC")
-  
+
   cc <- data_model_sub_to_sub |>
-    dplyr::filter(confounds=="True") |>
+    dplyr::filter(confounds) |>
     dplyr::filter(stringr::str_detect(task, "EMOTION", TRUE)) |>
     ggplot(aes(x = r, y = task)) +
     ggdist::stat_dots(quantiles = 100) +
     ylab("Task") +
     xlab("Pairwise Rank Correlation of Features\n(Sub to Sub)")
-  
-  p <- a + b + cc +
+
+  a + b + cc +
     patchwork::plot_layout(ncol = 1) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
     theme_gray(base_size = 8) +
-    theme(
-      legend.position = "bottom",
-      legend.key.size = unit(8, "pt")
-    )
-
-  tikzDevice::tikz(file, width=3.25, height=6)
-  p
-  dev.off()
-  file
+      theme(
+        legend.position = "bottom",
+        legend.key.size = unit(8, "pt")
+      )
 }
 
-make_all_cog <- function(file, data_model_gold_gold_to_study){
-  p <- data_model_gold_gold_to_study |>
+make_all_cog <- function(data_model_gold_gold_to_study) {
+  data_model_gold_gold_to_study |>
     dplyr::filter(
-      type == "simulation", 
-      stringr::str_detect(task, "EMOTION", TRUE)) |>
+      type == "simulation",
+      stringr::str_detect(task, "EMOTION", TRUE)
+    ) |>
     dplyr::mutate(max_avg = max(avg), .by = c(measure)) |>
     dplyr::mutate(
       measure = stringr::str_replace_all(measure, "_", "\\\\_"),
@@ -621,15 +549,10 @@ make_all_cog <- function(file, data_model_gold_gold_to_study){
       legend.position = "bottom",
       legend.key.size = unit(8, "pt")
     )
-
-  tikzDevice::tikz(file, width=6, height=8)
-  p
-  dev.off()
-  file
 }
 
-make_model_all_icc <- function(file, data_model_study_to_study, type){
-  p <- data_model_study_to_study |>
+make_model_all_icc <- function(data_model_study_to_study, type) {
+  data_model_study_to_study |>
     dplyr::filter(stringr::str_detect(task, "EMOTION", TRUE)) |>
     dplyr::filter(type == .env$type) |>
     dplyr::mutate(max_avg = max(icc), .by = c(measure)) |>
@@ -649,9 +572,17 @@ make_model_all_icc <- function(file, data_model_study_to_study, type){
       legend.position = "bottom",
       legend.key.size = unit(8, "pt")
     )
-  
-  tikzDevice::tikz(file, width=6, height=8)
-  p
-  dev.off()
+}
+
+
+make_tikz <- function(p, file, width, height) {
+  ggsave(
+    file,
+    p,
+    tikzDevice::tikz,
+    width = width,
+    height = height,
+    standAlone = TRUE
+  )
   file
 }

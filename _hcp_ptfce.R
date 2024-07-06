@@ -23,7 +23,7 @@ Sys.setenv(
 #   name = "small",
 #   workers = 1,
 # )
-# 
+#
 # controller_large <- crew::crew_controller_local(
 #   name = "large",
 #   workers = 4,
@@ -123,7 +123,7 @@ list(
     pattern = map(test)
   ),
   tar_target(at, make_atlas_full()),
-  tar_target(n_parcels, c(200, 400, 600, 800, 1000)), 
+  tar_target(n_parcels, c(200, 400, 600, 800, 1000)),
   tar_target(
     at_list,
     make_atlas_full(n_parcels = n_parcels),
@@ -146,7 +146,7 @@ list(
       tfce,
       m = purrr::map(
         .data$ptfce,
-        ~get_ptfce_maxes(q = .x, corrp_thresh = corrp_thresh, minextent = 0)
+        ~ get_ptfce_maxes(q = .x, corrp_thresh = corrp_thresh, minextent = 0)
       ),
       corrp_thresh = corrp_thresh
     ),
@@ -163,7 +163,7 @@ list(
       dplyr::mutate(
         augmented = purrr::map2(
           m.study, m.ref,
-          ~augment_distance(
+          ~ augment_distance(
             study = .x,
             reference = .y,
             vox_mm = 2
@@ -204,7 +204,7 @@ list(
       flags = "2BK-0BK",
       resample = FALSE,
       enhance = FALSE
-    )#,
+    ) # ,
     #    resources = tar_resources(
     #      crew = tar_resources_crew(controller = "small")
     #    )
@@ -229,7 +229,7 @@ list(
       dplyr::mutate(
         tmp = purrr::map(
           avail,
-          ~do_roi(
+          ~ do_roi(
             .x,
             n_sub = n_sub,
             iter = iter,
@@ -249,7 +249,7 @@ list(
       dplyr::mutate(
         tmp = purrr::map(
           avail,
-          ~do_roi(
+          ~ do_roi(
             .x,
             iter = 0,
             at = at_list
@@ -259,7 +259,7 @@ list(
       tidyr::unnest(tmp) |>
       dplyr::select(-avail),
     pattern = cross(map(test), at_list),
-    format = "parquet"#,
+    format = "parquet" # ,
     # resources = tar_resources(
     #   crew = tar_resources_crew(controller = "small")
     # )
@@ -285,14 +285,15 @@ list(
   tar_target(
     pairwise,
     cor_pairwise_ptfce(tfce, ContrastNames, n_sub, method = "spearman"),
-    cross(n_sub, ContrastNames)#,
+    cross(n_sub, ContrastNames) # ,
     # resources = tar_resources(
     #   crew = tar_resources_crew(controller = "small")
     # )
   ),
   tar_target(
-    dataset, 
-    "/Users/psadil/Library/CloudStorage/OneDrive-JohnsHopkins/Documents/data/hcp-to-parquet/data/out"),
+    dataset,
+    "/Users/psadil/Library/CloudStorage/OneDrive-JohnsHopkins/Documents/data/hcp-to-parquet/data/out"
+  ),
   tarchetypes::tar_group_by(
     subtask,
     get_subs_tasks(dataset),
@@ -303,7 +304,7 @@ list(
     data_topo_sub_to_sub,
     do_loo_cor(dataset, dplyr::select(subtask, sub, task)),
     map(subtask),
-    format = "parquet"#,
+    format = "parquet" # ,
     # resources = tar_resources(
     #   crew = tar_resources_crew(controller = "small")
     # )
@@ -331,7 +332,7 @@ list(
       dplyr::mutate(
         augmented = purrr::map2(
           m.study, m.ref,
-          ~augment_distance(
+          ~ augment_distance(
             study = .x,
             reference = .y,
             vox_mm = 2
@@ -402,7 +403,7 @@ list(
       zstats,
       m = purrr::map(
         .data$zstat,
-        ~get_ptfce_maxes_sub(zstat = .x, cluster_thresh = 0.001, minextent = 0)
+        ~ get_ptfce_maxes_sub(zstat = .x, cluster_thresh = 0.001, minextent = 0)
       )
     ),
     pattern = map(zstats)
@@ -418,7 +419,7 @@ list(
       dplyr::mutate(
         augmented = purrr::map2(
           m.study, m.ref,
-          ~augment_distance(
+          ~ augment_distance(
             study = .x,
             reference = .y,
             vox_mm = 2
@@ -443,7 +444,7 @@ list(
       dplyr::mutate(
         tmp = purrr::map2(
           avail, ContrastName,
-          ~do_tfce_pop2(
+          ~ do_tfce_pop2(
             .x,
             n_sub = length(.x),
             iter = 0,
@@ -462,7 +463,7 @@ list(
       dplyr::mutate(
         tmp = purrr::map2(
           avail, ContrastName,
-          ~do_tfce2(
+          ~ do_tfce2(
             .x,
             n_sub = n_sub,
             iter = iter,
@@ -500,12 +501,6 @@ list(
     ),
     format = "parquet"
   ),
-  # tar_target(
-  #   data_model_study_to_study2,
-  #   make_data_model_study_to_study2(
-  #     dataset="/Users/psadil/git/manuscripts/maps-to-models/act_preds/data/out"),
-  #   format = "parquet"
-  # ),
   tar_target(
     data_model_sub_to_sub,
     make_data_model_sub_to_sub(
@@ -526,140 +521,213 @@ list(
   ),
   tar_target(
     roi,
-    make_roi(
-      data_roi_study_to_gold,
-      data_roi_study_to_study,
-      data_roi_sub_to_sub,
-      file="analyses/figures/roi.tex"
-    ),
-    format = "file",
+    make_roi(data_roi_study_to_gold, data_roi_study_to_study, data_roi_sub_to_sub),
     packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    fig_roi,
+    make_tikz(p = roi, file = "analyses/figures/roi.tex", width = 3, height = 6),
+    format = "file"
   ),
   tar_target(
     prop_active_most_active_roi_ptfce_null,
     make_prop_active_most_active_roi_ptfce_null(
-      at_list=at_list, 
-      active_null=active_null, 
-      iter=iter, 
-      gold_tested=gold_tested,
-      file="analyses/figures/prop-active-most-active-roi-ptfce-null.tex"
+      at_list = at_list,
+      active_null = active_null,
+      iter = iter,
+      gold_tested = gold_tested
     ),
-    format = "file",
     packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    fig_prop_active_most_active_roi_ptfce_null,
+    make_tikz(
+      p = prop_active_most_active_roi_ptfce_null,
+      file = "analyses/figures/prop-active-most-active-roi-ptfce-null.tex",
+      width = 5,
+      height = 3
+    ),
+    format = "file"
   ),
   tar_target(
     prop_active_most_active_roi_ptfce,
     make_prop_active_most_active_roi_ptfce(
-      file="analyses/figures/prop-active-most-active-roi-ptfce.tex",
-      data_roi_study_to_gold=data_roi_study_to_gold
+      data_roi_study_to_gold = data_roi_study_to_gold
     ),
-    format = "file",
     packages = c("ggplot2")
+  ),
+  tar_target(
+    fig_prop_active_most_active_roi_ptfce,
+    make_tikz(
+      p = prop_active_most_active_roi_ptfce,
+      file = "analyses/figures/prop-active-most-active-roi-ptfce.tex",
+      width = 6,
+      height = 6.5
+    ),
+    format = "file"
   ),
   tar_target(
     peaks,
     make_peaks(
-      data_peak_study_to_gold=data_peak_study_to_gold, 
-      data_peak_study_to_study=data_peak_study_to_study, 
-      data_peak_sub_to_sub=data_peak_sub_to_sub,
-      file="analyses/figures/peaks.tex"
+      data_peak_study_to_gold = data_peak_study_to_gold,
+      data_peak_study_to_study = data_peak_study_to_study,
+      data_peak_sub_to_sub = data_peak_sub_to_sub
     ),
-    format = "file",
     packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    fig_peaks,
+    make_tikz(p = peaks, file = "analyses/figures/peaks.tex", width = 7, height = 3.5),
+    format = "file"
   ),
   tar_target(
     peak_bysize,
     make_peak_bysize(
-      file="analyses/figures/peak-bysize.tex",
-      space=space,
-      data_topo_gold=data_topo_gold,
-      gold_peaks=gold_peaks,
-      at=at
+      space = space,
+      data_topo_gold = data_topo_gold,
+      gold_peaks = gold_peaks,
+      at = at
     ),
-    format = "file",
     packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    fig_peak_bysize,
+    make_tikz(
+      p = peak_bysize,
+      file = "analyses/figures/peak-bysize.tex",
+      width = 5,
+      height = 4
+    ),
+    format = "file"
   ),
   tar_target(
     peak_bynetwork,
     make_peak_bynetwork(
-      file="analyses/figures/peak-bynetwork.tex",
-      space=space,
-      data_topo_gold=data_topo_gold,
-      gold_peaks=gold_peaks,
-      at=at
+      space = space,
+      data_topo_gold = data_topo_gold,
+      gold_peaks = gold_peaks,
+      at = at
     ),
-    format = "file",
     packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    fig_peak_bynetwork,
+    make_tikz(
+      p = peak_bynetwork,
+      file = "analyses/figures/peak-bynetwork.tex",
+      width = 6,
+      height = 4
+    ),
+    format = "file"
   ),
   tar_target(
     topo,
     make_topo(
-      file="analyses/figures/topo.tex",
-      data_topo_gold=data_topo_gold,
-      data_topo_gold_to_study=data_topo_gold_to_study,
-      data_topo_study_to_study=data_topo_study_to_study,
-      data_topo_sub_to_sub=data_topo_sub_to_sub
+      data_topo_gold = data_topo_gold,
+      data_topo_gold_to_study = data_topo_gold_to_study,
+      data_topo_study_to_study = data_topo_study_to_study,
+      data_topo_sub_to_sub = data_topo_sub_to_sub
     ),
-    format = "file",
     packages = c("ggplot2", "patchwork")
+  ),
+  tar_target(
+    fig_topo,
+    make_tikz(p = topo, file = "analyses/figures/topo.tex", width = 3.25, height = 7),
+    format = "file"
   ),
   tar_target(
     prop_effect_size,
-    make_prop_effect_size(
-      file="analyses/figures/prop_effect_size.tex",
-      data_topo_gold=data_topo_gold
-    ),
-    format = "file",
+    make_prop_effect_size(data_topo_gold = data_topo_gold),
     packages = c("ggplot2", "patchwork")
   ),
   tar_target(
-    topo_bynetwork,
-    make_topo_bynetwork(
-      file="analyses/figures/topo_bynetwork.tex",
-      pop_cor_region=pop_cor_region
+    fig_prop_effect_size,
+    make_tikz(
+      p = prop_effect_size,
+      file = "analyses/figures/prop-effect-size.tex",
+      width = 4.5,
+      height = 3
     ),
-    format = "file",
+    format = "file"
+  ),
+  tar_target(
+    topo_bynetwork,
+    make_topo_bynetwork(pop_cor_region = pop_cor_region),
     packages = c("ggplot2")
+  ),
+  tar_target(
+    fig_topo_bynetwork,
+    make_tikz(
+      p = topo_bynetwork,
+      file = "analyses/figures/topo-bynetwork.tex",
+      width = 6,
+      height = 4
+    ),
+    format = "file"
   ),
   tar_target(
     model,
     make_model(
-      file="analyses/figures/model.tex",
-      data_model_gold_gold_to_study=data_model_gold_gold_to_study,
-      data_model_study_to_study=data_model_study_to_study,
-      data_model_sub_to_sub=data_model_sub_to_sub
+      data_model_gold_gold_to_study = data_model_gold_gold_to_study,
+      data_model_study_to_study = data_model_study_to_study,
+      data_model_sub_to_sub = data_model_sub_to_sub
     ),
-    format = "file",
     packages = c("ggplot2", "patchwork")
   ),
   tar_target(
+    fig_model,
+    make_tikz(p = model, file = "analyses/figures/model.tex", width = 3.25, height = 6),
+    format = "file"
+  ),
+  tar_target(
     all_cog,
-    make_all_cog(
-      file="analyses/figures/all_cog.tex",
-      data_model_gold_gold_to_study=data_model_gold_gold_to_study
-    ),
-    format = "file",
+    make_all_cog(data_model_gold_gold_to_study = data_model_gold_gold_to_study),
     packages = c("ggplot2")
+  ),
+  tar_target(
+    fig_all_cog,
+    make_tikz(
+      p = all_cog,
+      file = "analyses/figures/all_cog.tex",
+      width = 6,
+      height = 8
+    ),
+    format = "file"
   ),
   tar_target(
     model_all_consistency,
     make_model_all_icc(
-      file="analyses/figures/model_all_consistency.tex",
-      data_model_study_to_study=data_model_study_to_study,
-      type="agreement"
+      data_model_study_to_study = data_model_study_to_study,
+      type = "consistency"
     ),
-    format = "file",
     packages = c("ggplot2")
   ),
   tar_target(
     model_all_agreement,
     make_model_all_icc(
-      file="analyses/figures/model_all_agreement.tex",
-      data_model_study_to_study=data_model_study_to_study,
-      type="agreement"
+      data_model_study_to_study = data_model_study_to_study,
+      type = "agreement"
     ),
-    format = "file",
     packages = c("ggplot2")
+  ),
+  tar_target(
+    fig_model_all_agreement,
+    make_tikz(
+      p = model_all_agreement,
+      file = "analyses/figures/model_all_agreement.tex",
+      width = 6,
+      height = 8
+    ),
+    format = "file"
+  ),
+  tar_target(
+    fig_model_all_consistency,
+    make_tikz(
+      p = model_all_consistency,
+      file = "analyses/figures/model_all_consistency.tex",
+      width = 6,
+      height = 8
+    ),
+    format = "file"
   )
 )
-
