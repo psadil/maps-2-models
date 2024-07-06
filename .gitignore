@@ -30,13 +30,12 @@ analyses/ohbm2022/bloomberg
 *parquet
 *nii.gz
 *png
-*csv
 *xlsx
 _hcp.bak
 _hcp.bak1
 
 
-data-raw/Parcellation
+data-raw/Parcellations
 data-raw/1000subjects_reference
 data-raw/hcp/disk*
 

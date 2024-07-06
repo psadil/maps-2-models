@@ -122,16 +122,6 @@ list(
       tidyr::unnest(tmp),
     pattern = map(test)
   ),
-  # tar_target(
-  #   active0,
-  #   tfce |> dplyr::mutate(tmp = purrr::map(ptfce, get_active_ptfce)),
-  #   pattern = map(tfce)
-  # ),
-  # tar_target(
-  #   active,
-  #   tidyr::unnest(active0, tmp) |> dplyr::select(-ptfce, -avail),
-  #   format = format_arrow_table()
-  # ),
   tar_target(at, make_atlas_full()),
   tar_target(n_parcels, c(200, 400, 600, 800, 1000)), 
   tar_target(
