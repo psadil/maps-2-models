@@ -43,20 +43,13 @@ make_data_model_study_to_study <- function(dataset) {
     tidyr::pivot_wider()
 }
 
-make_data_model_study_to_study2 <- function(dataset) {
-  arrow::open_dataset(dataset) |>
-    dplyr::select(sub, fold, n_sub, task, y_hat) |>
-    dplyr::collect() |>
-    dplyr::summarise(s = sd(y_hat), .by = c(sub, n_sub, task)) |>
-    dplyr::mutate(n_sub = factor(n_sub))
-}
 
 make_data_model_gold_gold_to_study <- function(dataset_gold, dataset) {
   gold <- arrow::open_dataset(dataset_gold) |>
     dplyr::filter(dimension == 64, model == "RIDGE_CV") |>
     dplyr::distinct(statistic_rep, pvalue_rep, r2_rep_p, r2_rep, mae_rep, measure, task, sub, confounds) |>
     dplyr::collect() |>
-    dplyr::mutate(n_sub = dplyr::n_distinct(sub), .by = c(task, measure)) |>
+    dplyr::mutate(n_sub = dplyr::n_distinct(sub), .by = c(task, measure, confounds)) |>
     dplyr::distinct(statistic_rep, pvalue_rep, r2_rep_p, r2_rep, mae_rep, measure, task, n_sub, confounds) |>
     dplyr::mutate(type = "gold")
 
@@ -90,7 +83,7 @@ make_data_model_gold_gold_to_study_ukb <- function(dataset_gold, dataset) {
     dplyr::collect() |>
     dplyr::summarise(
       statistic_rep = cor(g, y_hat, method = "spearman"),
-      .by = c(measure, task)
+      .by = c(measure, task, confounds)
     ) |>
     dplyr::mutate(type = "gold")
 
@@ -99,9 +92,9 @@ make_data_model_gold_gold_to_study_ukb <- function(dataset_gold, dataset) {
     dplyr::collect() |>
     dplyr::summarise(
       statistic_rep = cor(g, y_hat, method = "spearman"),
-      .by = c(measure, task, model, dimension, study, n_sub)
+      .by = c(measure, task, model, dimension, study, n_sub, confounds)
     ) |>
-    dplyr::group_nest(n_sub, task, measure) |>
+    dplyr::group_nest(n_sub, task, measure, confounds) |>
     dplyr::mutate(
       m = purrr::map2(
         n_sub, data,

@@ -1,3 +1,22 @@
+calc_z <- function(cope_files) {
+  copes <- RNifti::readNifti(cope_files) |> simplify2array()
+  stopifnot(length(dim(copes)) == 4)
+  n <- dim(copes)[4]
+  means <- apply(copes, 1:3, mean)
+  sds <- apply(copes, 1:3, sd)
+  t_stat <- sqrt(n) * means / sds
+  z_stat <- apply(
+    t_stat, 1:3,
+    FUN = function(x) {
+      pt(x, n - 1, log.p = TRUE, lower.tail = FALSE) |>
+        qnorm(log.p = TRUE, lower.tail = FALSE)
+    }
+  )
+  z_stat[is.na(z_stat)] <- 0
+  
+  neurobase::niftiarr(neurobase::readnii(cope_files[[1]]), z_stat)
+}
+
 do_ptfce <- function(
     cope_files,
     n_sub,
@@ -36,33 +55,6 @@ do_ptfce <- function(
   tibble::tibble(ptfce = outf, iter = iter, n_sub = n_sub, copes = list(copes))
 }
 
-do_ptfce_sub <- function(
-    zstat,
-    mask = MNITemplate::getMNIPath("Brain_Mask", "2mm"),
-    storage_dir = here::here("data-raw", "niis"),
-    flags = "",
-    enhance = TRUE) {
-  Z <- oro.nifti::readNIfTI(zstat)
-
-  if (enhance) {
-    out <- pTFCE::ptfce(
-      img = zstat,
-      mask = oro.nifti::readNIfTI(mask),
-      verbose = FALSE
-    )
-  } else {
-    out <- list()
-  }
-  out$Z_raw <- Z
-  outf <- fs::path(
-    storage_dir,
-    glue::glue("sub-{sub}_flags-{unique(flags)}"),
-    ext = "qs"
-  )
-  qs::qsave(out, file = outf)
-
-  tibble::tibble(ptfce = outf, iter = 0, n_sub = 1, copes = list(copes))
-}
 
 get_active_ptfce <- function(q) {
   x <- qs::qread(q)
@@ -214,36 +206,3 @@ test_roi <- function(rois, ..., .fwer = 0.05) {
     dplyr::mutate(active = p.adjusted < .fwer)
 }
 
-
-cor_pairwise_ptfce <- function(tfce, ContrastName, n_sub, method = "spearman") {
-  tfce <- tfce |>
-    dplyr::filter(
-      .data$n_sub == .env$n_sub,
-      .data$ContrastName == .env$ContrastName
-    )
-
-  tmp <- tfce |>
-    dplyr::select(Task, CopeNumber, ContrastName, n_sub, ptfce, iter) |>
-    dplyr::mutate(
-      data2 = purrr::map(
-        ptfce,
-        ~ to_tbl0(qs::qread(.x)$Z) |> mask()
-      )
-    ) |>
-    tidyr::unnest(data2) |>
-    dplyr::select(-ptfce) |>
-    tidyr::pivot_wider(names_from = iter, values_from = value)
-
-  tmp |>
-    dplyr::distinct(Task, CopeNumber, ContrastName, n_sub) |>
-    dplyr::mutate(
-      rhos = list(
-        tmp |>
-          dplyr::select(tidyselect::matches("[[:digit:]]+")) |>
-          corrr::correlate(method = .env$method, quiet = TRUE) |>
-          corrr::stretch()
-      ),
-      method = .env$method
-    ) |>
-    tidyr::unnest(rhos)
-}

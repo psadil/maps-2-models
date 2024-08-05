@@ -4,7 +4,6 @@ library(targets)
 library(tarchetypes)
 library(rlang)
 
-source(here::here("R", "ale.R"))
 source(here::here("R", "spatial.R"))
 source(here::here("R", "tfce.R"))
 source(here::here("R", "utils.R"))
@@ -16,24 +15,26 @@ source(here::here("R", "model.R"))
 source(here::here("R", "manuscript.R"))
 
 Sys.setenv(
-  NIIDIR = here::here("data-raw", "hcp-niis-ptfce")
+  # NIIDIR = here::here("data-raw", "hcp-niis-ptfce")
+  NIIDIR = "/Users/psadil/Library/CloudStorage/OneDrive-JohnsHopkins/Documents/manuscripts/maps-to-models/meta/hcp-niis-ptfce",
+  HCPPARQUET = "/Users/psadil/Library/CloudStorage/OneDrive-JohnsHopkins/data/hcp-to-parquet/data/out"
 ) # explicitly avoiding tracking this
 
 # controller_small <- crew::crew_controller_local(
 #   name = "small",
 #   workers = 1,
 # )
-#
+# 
 # controller_large <- crew::crew_controller_local(
 #   name = "large",
-#   workers = 4,
+#   workers = 5,
 # )
 
 
 targets::tar_option_set(
   format = "qs",
   storage = "worker",
-  packages = c("oro.nifti"),
+  packages = c("oro.nifti")
   # controller = crew::crew_controller_group(controller_small, controller_large),
   # resources = tar_resources(
   #   crew = tar_resources_crew(controller = "large")
@@ -284,25 +285,29 @@ list(
   tar_target(ContrastNames, contrasts$ContrastName),
   tar_target(
     pairwise,
-    cor_pairwise_ptfce(tfce, ContrastNames, n_sub, method = "spearman"),
+    cor_pairwise_ptfce(
+      tfce, 
+      ContrastNames, 
+      n_sub, 
+      storage_dir = Sys.getenv("NIIDIR"),
+      method = "spearman"),
     cross(n_sub, ContrastNames) # ,
     # resources = tar_resources(
     #   crew = tar_resources_crew(controller = "small")
     # )
   ),
-  tar_target(
-    dataset,
-    "/Users/psadil/Library/CloudStorage/OneDrive-JohnsHopkins/Documents/data/hcp-to-parquet/data/out"
-  ),
   tarchetypes::tar_group_by(
     subtask,
-    get_subs_tasks(dataset),
+    get_subs_tasks(Sys.getenv("HCPPARQUET"), contrasts),
     sub,
     format = "parquet"
   ),
   tar_target(
     data_topo_sub_to_sub,
-    do_loo_cor(dataset, dplyr::select(subtask, sub, task)),
+    do_loo_cor(
+      dataset=Sys.getenv("HCPPARQUET"), 
+      subtask=dplyr::select(subtask, sub, task), 
+      method="spearman"),
     map(subtask),
     format = "parquet" # ,
     # resources = tar_resources(
@@ -355,7 +360,7 @@ list(
     data_peak_study_to_study,
     make_data_peak_study_to_study(
       at = at,
-      space = dplyr::bind_rows(space_no_thresh, space),
+      space = space,
       gold_peaks = gold_peaks
     ),
     format = "parquet"
@@ -364,7 +369,9 @@ list(
     data_roi_study_to_gold,
     make_data_roi_study_to_gold(
       gold_tested = gold_tested,
-      rois_tested = rois_tested
+      rois_tested = rois_tested,
+      at_list=at_list,
+      data_topo_gold=data_topo_gold
     ),
     format = "parquet"
   ),
@@ -383,7 +390,8 @@ list(
     make_data_peak_study_to_gold(
       at = at,
       gold_peaks = gold_peaks,
-      space = space
+      space = space,
+      data_topo_gold=data_topo_gold
     ),
     format = "parquet"
   ),
@@ -459,26 +467,25 @@ list(
   tar_target(data_topo_gold, get_pop_d(tfce_pop_fsl)),
   tar_target(
     tfce_fsl,
-    test |>
+    tfce |>
       dplyr::mutate(
-        tmp = purrr::map2(
-          avail, ContrastName,
-          ~ do_tfce2(
-            .x,
-            n_sub = n_sub,
-            iter = iter,
-            n = 1,
-            storage_dir = Sys.getenv("NIIDIR"),
-            flags = .y
-          )
+        tmp = purrr::pmap(
+          list(copes=copes, flags=ContrastName, iter=iter, n_sub=n_sub),
+          do_tfce2,
+          n=1,
+          storage_dir = Sys.getenv("NIIDIR"),
         )
       ) |>
       tidyr::unnest(tmp),
-    pattern = cross(n_sub, iter, map(test))
+    pattern = map(tfce)
   ),
   tar_target(
     data_topo_gold_to_study,
-    make_data_topo_gold_to_study(tfce_fsl, tfce_pop_fsl, method = "spearman"),
+    make_data_topo_gold_to_study(
+      tfce_fsl, 
+      tfce_pop_fsl, 
+      storage_dir = Sys.getenv("NIIDIR"),
+      method = "spearman"),
     cross(map(tfce_fsl))
   ),
   tar_target(
@@ -514,6 +521,7 @@ list(
       tfce = tfce_fsl,
       tfce_pop = tfce_pop_fsl,
       at = at,
+      storage_dir = Sys.getenv("NIIDIR"),
       method = "spearman"
     ),
     map(tfce_fsl),
@@ -582,12 +590,7 @@ list(
   ),
   tar_target(
     peak_bysize,
-    make_peak_bysize(
-      space = space,
-      data_topo_gold = data_topo_gold,
-      gold_peaks = gold_peaks,
-      at = at
-    ),
+    make_peak_bysize(space = space, data_topo_gold = data_topo_gold),
     packages = c("ggplot2", "patchwork")
   ),
   tar_target(
@@ -602,12 +605,7 @@ list(
   ),
   tar_target(
     peak_bynetwork,
-    make_peak_bynetwork(
-      space = space,
-      data_topo_gold = data_topo_gold,
-      gold_peaks = gold_peaks,
-      at = at
-    ),
+    make_peak_bynetwork(space = space, data_topo_gold = data_topo_gold),
     packages = c("ggplot2", "patchwork")
   ),
   tar_target(
@@ -652,7 +650,7 @@ list(
   ),
   tar_target(
     topo_bynetwork,
-    make_topo_bynetwork(pop_cor_region = pop_cor_region),
+    make_topo_bynetwork(pop_cor_region = pop_cor_region, data_topo_gold, at),
     packages = c("ggplot2")
   ),
   tar_target(

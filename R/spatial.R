@@ -163,47 +163,6 @@ get_sizes <- function(cls) {
     dplyr::distinct(`Cluster Index`, cluster_size)
 }
 
-get_maxes <- function(
-    niifile,
-    threshold = 2,
-    mask = fslr::mni_fname(mm = "2", brain = TRUE, mask = TRUE),
-    at = make_atlas_full(),
-    minextent = 0) {
-  m <- neurobase::fast_readnii(mask)
-  volume <- sum(m)
-  z <- neurobase::fast_readnii(niifile) |>
-    neurobase::mask_img(mask = m)
-
-  cls1 <- fslr::fslcluster(
-    z,
-    threshold = threshold,
-    opts = glue::glue("--volume={volume} --minextent={minextent} --num=1000")
-  )
-
-  cls2 <- fslr::fslcluster(
-    z * -1,
-    threshold = threshold,
-    opts = glue::glue("--volume={volume} --minextent={minextent} --num=1000")
-  )
-
-  pos <- readr::read_tsv(
-    cls1$olmax,
-    col_select = c(-`...6`), show_col_types = FALSE, num_threads = 1
-  ) |>
-    dplyr::mutate(x = x + 1, y = y + 1, z = z + 1) |>
-    dplyr::mutate(sign = "positive") |>
-    dplyr::left_join(get_sizes(cls1), by = "Cluster Index")
-  neg <- readr::read_tsv(
-    cls2$olmax,
-    col_select = c(-`...6`), show_col_types = FALSE, num_threads = 1
-  ) |>
-    dplyr::mutate(x = x + 1, y = y + 1, z = z + 1) |>
-    dplyr::mutate(sign = "negative") |>
-    dplyr::left_join(get_sizes(cls2), by = "Cluster Index")
-
-  dplyr::bind_rows(pos, neg) |>
-    dplyr::left_join(at, by = c("x", "y", "z"))
-}
 
 augment_distance <- function(study, reference, vox_mm = 2.4) {
   # happens when no peaks were found in study

@@ -10,7 +10,9 @@ This repo holds the analysis scripts for *From Maps to Models: A Survey on the R
 
 ### Data
 
-The report uses data from the HCP YA S500 release. These should be stored in data-raw/hcp/disk*. Given that this only relies on a few elements from the HCP dataset (e.g., a few copes), the script [tools/collecthcp](tools/collecthcp) may be helpful. The tabular information should be deposted into `data-raw/hcp/[un]restricted.csv` (a copy of the unrestricted table is included in this repo).
+The report uses data from the HCP YA S500 release. These should be stored in data-raw/hcp/disk*. Given that this only relies on a few elements from the HCP dataset (e.g., a few copes), the script [tools/collecthcp](tools/collecthcp) may be helpful. The tabular information should be deposted into `data-raw/hcp/[un]restricted.csv`. A copy of the [unrestricted](data/hcp/unrestricted.csv) table is included in this repo. The reference table to contrasts must also be available, as provided by [contrasts](data/hcp/contrasts.csv).
+
+Part of the main analysis script relies on a parquet version of the S500 release that was compiled with [tools/hcptoparquet.py](tools/hcptoparquet.py). The location of that script's output should be stored in the path referenced by the environment variable `HCPPARQUET`, defined at the top of [_targets.R](_targets.R).
 
 It is expected that `fslr::fsldir()` resolves to a valid directory.
 
@@ -18,6 +20,8 @@ The rest of the analysis scripts assume that the following folders are also in d
 
 - [data-raw/1000subjects_reference](https://github.com/ThomasYeoLab/CBIG/tree/80cf681d25ef8a0d259c5773e92f0d39537aaca1/stable_projects/brain_parcellation/Yeo2011_fcMRI_clustering/1000subjects_reference)
 - [data-raw/Parcellations](https://github.com/ThomasYeoLab/CBIG/tree/80cf681d25ef8a0d259c5773e92f0d39537aaca1/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations)
+
+Analysis results (including outputs from _targets) are available on zenodo: [https://doi.org/10.5281/zenodo.12686151](https://doi.org/10.5281/zenodo.12686151).
 
 ### R Environment
 
@@ -33,7 +37,7 @@ The python scripts relied on an environment that is described in [env.yml](tools
 
 ### Data Preprocessing and Predictive Modeling
 
-The model predictions are mainly done in python. One script, [difumo-connectivity](tools/difumo-connectivity) prepares parquet files for analysis (as a SLURM array job with 3419 elements). This script will generate an arrow dataset (cpm-difumo2) which can be aggregated into a single parquet file with [gather-difumo.py](tools/gather-difumo.py), which generates `cpm-difumo.parquet`. That file contains the model predictors. The predicted values come from the unrestricted and restricted portions of the HCP YA dataset, and they are grouped by [bundle-hcp.py](tools/bundle-hcp.py) into a parquet file called `hcp.parquet`. Finally, the modeling is done by [act_preds](tools/act_preds), which uses the features from `cpm-difumo.parquet` to predict the outputs in `hcp.parquet` (as a SLURM array job with 63 elements). The outputs of these scripts should be placed in the data-raw folder:
+The model predictions are mainly done in python. One script, [difumo-connectivity](tools/difumo-connectivity) prepares parquet files for analysis (as a SLURM array job with 3418 elements). This script will generate an arrow dataset (cpm-difumo2) which can be aggregated into a single parquet file with [gather-difumo.py](tools/gather-difumo.py), which generates `cpm-difumo.parquet`. That file contains the model predictors. The predicted values come from the unrestricted and restricted portions of the HCP YA dataset, and they are grouped by [bundle-hcp.py](tools/bundle-hcp.py) into a parquet file called `hcp.parquet`. Finally, the modeling is done by [act_preds](tools/act_preds), which uses the features from `cpm-difumo.parquet` to predict the outputs in `hcp.parquet` (as a SLURM array job with 63 elements). The outputs of these scripts should be placed in the data-raw folder:
 
 - data-raw/out-perm-cpm-preds-sametest
 - data-raw/out-perm-cpm-sametest
@@ -49,7 +53,7 @@ Sys.setenv(TAR_PROJECT = "hcp_ptfce")
 targets::tar_make()
 ```
 
-Note that these analyses are embarrassingly parallel, so if multiple cores are available then it may be beneficial to use [crew](https://books.ropensci.org/targets/crew.html). The [_hcp_ptfce.R](_hcp_ptfce.R) script has examples of doing so (commented out).
+Note that these analyses are embarrassingly parallel, so if multiple cores are available then it may be beneficial to use [crew](https://books.ropensci.org/targets/crew.html). The [_targets.R](_targets.R) script has examples of doing so (commented out).
 
 ### Figures
 

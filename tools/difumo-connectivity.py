@@ -89,6 +89,7 @@ def get_connectivity(img: Path, mask: Path, confounds: bool = True):
             cnf_tbl = None
         cleaned = image.clean_img(
             imgs=img,
+            high_pass=0.01,
             low_pass=0.1,
             detrend=True,
             standardize=True,
@@ -103,6 +104,7 @@ def get_connectivity(img: Path, mask: Path, confounds: bool = True):
                 cnf_tbl = None
             rl_cleaned = image.clean_img(
                 imgs=rl_img,
+                high_pass=0.01,
                 low_pass=0.1,
                 detrend=True,
                 standardize=True,
@@ -135,7 +137,7 @@ if __name__ == "__main__":
         "--mask",
         type=Path,
         default=Path(
-            "/fastscratch/myscratch/pssadil/MNI152_T1_2mm_brain_mask.nii.gz"
+            "/fastscratch/myscratch/pssadil/MNI152_T1_2mm_brain_mask_dil.nii.gz"
         ),
     )
     parser.add_argument(

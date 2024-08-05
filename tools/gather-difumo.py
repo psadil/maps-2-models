@@ -13,7 +13,7 @@ pl.scan_pyarrow_dataset(dset).collect().with_columns(
     confounds=pl.col("confounds").str.contains("True"),
 ).drop("components").pivot(
     values="components_z",
-    columns="i",
+    on="i",
     index=["dimension", "confounds", "sub", "task"],
 ).write_parquet(
     "../data-raw/cpm-difumo.parquet"

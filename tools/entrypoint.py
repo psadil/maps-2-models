@@ -102,19 +102,6 @@ TASK = typing.Literal[
 ]
 
 
-def do_sample(
-    clf,
-    X_train: pl.DataFrame,
-    y_train: pl.DataFrame,
-    X_test: pl.DataFrame,
-    y_test: pl.DataFrame,
-) -> pl.DataFrame:
-    model = clf.fit(X_train, y_train.to_numpy().squeeze())
-    y_hat = model.predict(X_test)
-
-    return y_test.with_columns(pl.Series("y_hat", y_hat))
-
-
 def cor_rank(x, y) -> float:
     if (x[0] == x).all() or (y[0] == y).all():
         # If an input is constant, the correlation coefficient
@@ -133,36 +120,33 @@ def test_cor(y, y_hat, seed: int | None = None) -> PermutationTestResult:
     )
 
 
-def cross_validate0(
-    clf, X, y: pl.DataFrame, sub: pl.DataFrame, cv=None
-) -> pl.DataFrame:
-    model = clf.fit(X, y.to_series())
-    y_hat = pl.Series("y_hat", model.predict(X))
-    out = y.with_columns(y_hat).with_columns(
-        sub=sub.to_series(),
-        fold=0,
-        statistic=cor_rank(y["g"], y_hat),
-        r2=metrics.r2_score(y["g"], y_hat),
-        mae=metrics.mean_absolute_error(y["g"], y_hat),
-    )
-    return out
-
-
 def test_sample(
     d_test: pl.DataFrame,
     d_trainval: pl.DataFrame,
-    clf,
     seed: int,
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
-    out_ = cross_validate0(
-        clf=clf,
-        X=d_trainval.drop("sub", "g"),
-        y=d_trainval.select("g"),
-        sub=d_trainval.select("sub"),
+    # https://github.com/KamalakerDadi/DiFuMo_analysis_scripts/blob/eeedd19b31e6e8859ba00fdbfb38b14e8fc88eea/3_3_Decoding_stimuli/ridge/run_pipeline_decoding_emotion.py#L60C24-L60C48
+    clf = make_pipeline(
+        feature_selection.VarianceThreshold(0.01),  # not all regions in fov
+        preprocessing.RobustScaler(),
+        linear_model.RidgeCV(alphas=np.logspace(-1.0, 4.0, 20)),
     )
 
-    # final train on full set
     model = clf.fit(d_trainval.drop("sub", "g"), d_trainval["g"])
+    y_hat_trainvals = pl.Series(
+        "y_hat", model.predict(d_trainval.drop("sub", "g"))
+    )
+    out_ = (
+        d_trainval.select("g")
+        .with_columns(y_hat_trainvals)
+        .with_columns(
+            sub=d_trainval["sub"],
+            statistic=cor_rank(d_trainval["g"], y_hat_trainvals),
+            r2=metrics.r2_score(d_trainval["g"], y_hat_trainvals),
+            mae=metrics.mean_absolute_error(d_trainval["g"], y_hat_trainvals),
+        )
+    )
+
     y_hat = model.predict(d_test.drop("sub", "g"))
 
     p = permutation_test(
@@ -202,20 +186,13 @@ def main(
     n_subs: list[int],
     tasks: list[TASK],
     measures: list[MEASURE],
+    confounds: list[bool],
 ) -> None:
     di = 64
     model = "RIDGE_CV"
     for measure in measures:
-        for confound in [True, False]:
+        for confound in confounds:
             logging.info(f"{measure=}")
-            # https://github.com/KamalakerDadi/DiFuMo_analysis_scripts/blob/eeedd19b31e6e8859ba00fdbfb38b14e8fc88eea/3_3_Decoding_stimuli/ridge/run_pipeline_decoding_emotion.py#L60C24-L60C48
-            clf = make_pipeline(
-                feature_selection.VarianceThreshold(
-                    0.01
-                ),  # not all regions in fov
-                preprocessing.RobustScaler(),
-                linear_model.RidgeCV(alphas=np.logspace(-1.0, 4.0, 20)),
-            )
 
             for task in tasks:
                 logging.info(f"{task=}")
@@ -247,7 +224,6 @@ def main(
                 out_, out2 = test_sample(
                     d_test=d_test,
                     d_trainval=d_trainval,
-                    clf=clf,
                     seed=0,
                 )
 
@@ -295,7 +271,6 @@ def main(
                         out_, out2_ = test_sample(
                             d_test=d_test,
                             d_trainval=d_trainval,
-                            clf=clf,
                             seed=study,
                         )
 
@@ -353,6 +328,12 @@ if __name__ == "__main__":
         default=typing.get_args(MEASURE),
     )
     group.add_argument("--measure", type=int)
+    group.add_argument(
+        "--confounds",
+        nargs="+",
+        choices=["True", "False"],
+        default=["True", "False"],
+    )
     args = parser.parse_args()
 
     if args.measure:
@@ -368,11 +349,5 @@ if __name__ == "__main__":
         n_subs=args.n_subs,
         tasks=args.tasks,
         measures=measures,
+        confounds=[c == "True" for c in args.confounds],
     )
-
-    # main(
-    #     n_studies=args.n_studies,
-    #     n_subs=args.n_subs,
-    #     tasks=args.tasks,
-    #     measures=args.measures,
-    # )

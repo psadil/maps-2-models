@@ -28,7 +28,7 @@ make_roi <- function(
       limits = c(0, NA),
       n.breaks = 3
     )
-
+  
   b <- data_roi_study_to_study |>
     dplyr::filter(
       forcats::fct_match(n_parcels, "N Parcels: 400")
@@ -43,7 +43,7 @@ make_roi <- function(
       breaks = c(-0.25, 0.5),
       labels = c(-0.25, 0.5)
     )
-
+  
   cc <- data_roi_sub_to_sub |>
     dplyr::mutate(
       Task = factor(Task),
@@ -60,15 +60,15 @@ make_roi <- function(
       breaks = c(-0.75, 0, 0.75),
       labels = c(-0.75, 0, 0.75)
     )
-
+  
   a + b + cc +
     patchwork::plot_layout(ncol = 1, heights = c(1, 1.5, 1)) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
     ggplot2::theme_gray(base_size = 8) +
-      ggplot2::theme(
-        legend.position = "bottom",
-        legend.key.size = unit(8, "pt")
-      )
+    ggplot2::theme(
+      legend.position = "bottom",
+      legend.key.size = unit(8, "pt")
+    )
 }
 
 get_max <- function(q) {
@@ -84,7 +84,7 @@ make_prop_active_most_active_roi_ptfce_null <- function(
     gold_tested,
     active_threshold = 0.02) {
   n_sims <- dplyr::n_distinct(iter)
-
+  
   # regions with at least one voxel active
   out_null <- active_null |>
     dplyr::collect() |>
@@ -105,7 +105,7 @@ make_prop_active_most_active_roi_ptfce_null <- function(
       n_parcels
     ) |>
     dplyr::mutate(prop = n / n_sims)
-
+  
   gold_null <- gold_tested |>
     dplyr::filter(Task == "WM") |>
     dplyr::mutate(
@@ -124,7 +124,7 @@ make_prop_active_most_active_roi_ptfce_null <- function(
         as.numeric() |>
         factor()
     )
-
+  
   out_null |>
     dplyr::semi_join(dplyr::distinct(gold_null, l, label, n_parcels)) |>
     dplyr::right_join(
@@ -218,16 +218,17 @@ make_peaks <- function(
       limits = c(0, NA),
       n.breaks = 3
     )
-
+  
   b <- data_peak_study_to_study |>
+    dplyr::filter(corrp_thresh == 0.95) |>
     ggplot(aes(y = n_sub, x = d)) +
     facet_wrap(~Task) +
     ggdist::stat_dots(quantiles = 100) +
     ylab("N Sub") +
     scale_x_continuous(
-      "Distance Between\nHighest Peaks\n(Study-Study)"
+      "Distance Between\nAssociated Peaks\n(Study-Study)"
     )
-
+  
   cc <- data_peak_sub_to_sub |>
     dplyr::mutate(
       Task = factor(Task),
@@ -237,44 +238,37 @@ make_peaks <- function(
     ggdist::stat_dots(quantiles = 100) +
     ylab(NULL) +
     scale_x_continuous(
-      "Distance Between\nHighest Peaks\n(Sub-Sub)"
+      "Distance Between\nAssociated Peaks\n(Sub-Sub)"
     )
-
+  
   a + b + cc +
     patchwork::plot_layout(nrow = 1, widths = c(4, 2, 1)) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
     theme_gray(base_size = 6) +
-      theme(
-        legend.position = "bottom",
-        legend.key.size = unit(6, "pt")
-      )
+    theme(
+      legend.position = "bottom",
+      legend.key.size = unit(6, "pt")
+    )
 }
 
-make_peak_bysize <- function(space, data_topo_gold, gold_peaks, at) {
-  gold_peaks_ <- gold_peaks |>
-    dplyr::select(Task, m) |>
-    tidyr::unnest(m) |>
-    dplyr::left_join(at) |>
-    dplyr::group_by(Task, label) |>
-    dplyr::slice_max(
-      order_by = Value,
-      n = 1,
-      with_ties = FALSE
-    ) |> # grab highest peak from each label
-    dplyr::group_by(Task) |>
-    dplyr::slice_max(
-      order_by = Value,
-      n = 10,
-      with_ties = FALSE
-    ) |> # grab highest 10 peaks (distinct labels)
-    dplyr::ungroup() |>
-    dplyr::distinct(Task, x, y, z, Value)
-
+make_peak_bysize <- function(space, data_topo_gold) {
+  
+  topo_gold <- data_topo_gold |>
+    dplyr::mutate(d = cope / sigma * correct_d(n_sub)) |>
+    dplyr::select(Task, x, y, z, hedges_g=d)
+  
   space |>
-    dplyr::mutate(Value = Value / sqrt(n_pop)) |>
-    dplyr::filter(Value > 0.2) |>
-    dplyr::group_by(Value, n_sub, corrp_thresh, Task) |>
-    dplyr::summarise(d = mean(d, na.rm = TRUE), .groups = "drop") |>
+    dplyr::filter(!is.na(d)) |>
+    dplyr::mutate(
+      `Network Name` =
+        dplyr::if_else(is.na(`Network Name`) & !is.na(label), "subcortical", `Network Name`)
+    ) |>
+    dplyr::filter(!is.na(`Network Name`)) |>    
+    dplyr::summarise(
+      d = mean(d, na.rm = TRUE),
+      .by = c(n_sub, corrp_thresh, Task, `Network Name`, x, y, z)
+    ) |>
+    dplyr::left_join(topo_gold, by = dplyr::join_by(Task, x, y, z)) |>
     dplyr::mutate(
       `N Sub` = glue::glue("N Sub: {n_sub}"),
       `N Sub` = factor(
@@ -288,8 +282,10 @@ make_peak_bysize <- function(space, data_topo_gold, gold_peaks, at) {
         )
       )
     ) |>
-    ggplot(aes(y = d, x = Value)) +
-    geom_point(alpha = 0.1, shape = 20) +
+    ggplot(aes(y = d, x = hedges_g)) +
+    scattermore::geom_scattermore(
+      pointsize = 5, 
+      alpha = 0.25) +
     facet_grid(`N Sub` ~ Task) +
     scale_x_continuous(
       "Gold Standard Peak Cohen's d",
@@ -300,34 +296,24 @@ make_peak_bysize <- function(space, data_topo_gold, gold_peaks, at) {
     theme_gray(base_size = 8)
 }
 
-make_peak_bynetwork <- function(space, data_topo_gold, gold_peaks, at) {
-  gold_peaks_ <- gold_peaks |>
-    dplyr::select(Task, m) |>
-    tidyr::unnest(m) |>
-    dplyr::left_join(at) |>
-    dplyr::group_by(Task, label) |>
-    dplyr::slice_max(
-      order_by = Value,
-      n = 1,
-      with_ties = FALSE
-    ) |> # grab highest peak from each label
-    dplyr::group_by(Task) |>
-    dplyr::slice_max(
-      order_by = Value,
-      n = 10,
-      with_ties = FALSE
-    ) |> # grab highest 10 peaks (distinct labels)
-    dplyr::ungroup() |>
-    dplyr::distinct(Task, x, y, z, Value)
-
+make_peak_bynetwork <- function(space, data_topo_gold) {
+  
+  topo_gold <- data_topo_gold |>
+    dplyr::mutate(d = cope / sigma * correct_d(n_sub)) |>
+    dplyr::select(Task, x, y, z, hedges_g=d)
+  
   space |>
-    dplyr::mutate(Value = Value / sqrt(n_pop)) |>
-    dplyr::filter(Value > 0.2, !is.na(`Network Name`)) |>
-    dplyr::group_by(n_sub, corrp_thresh, Task, `Network Name`, iter) |>
+    dplyr::filter(!is.na(d)) |>
+    dplyr::mutate(
+      `Network Name` =
+        dplyr::if_else(is.na(`Network Name`) & !is.na(label), "subcortical", `Network Name`)
+    ) |>
+    dplyr::filter(!is.na(`Network Name`)) |>
+    dplyr::left_join(topo_gold, by = dplyr::join_by(Task, x, y, z)) |>
     dplyr::summarise(
       d = mean(d, na.rm = TRUE),
-      Value = mean(Value, na.rm = TRUE),
-      .groups = "drop"
+      hedges_g = mean(hedges_g, na.rm = TRUE),
+      .by = c(n_sub, corrp_thresh, Task, `Network Name`, iter)
     ) |>
     dplyr::mutate(
       `N Sub` = glue::glue("N Sub: {n_sub}"),
@@ -341,9 +327,8 @@ make_peak_bynetwork <- function(space, data_topo_gold, gold_peaks, at) {
           "N Sub: 100"
         )
       )
-    ) |>
-    dplyr::filter(!is.na(d)) |>
-    ggplot(aes(y = `Network Name`, x = d, color = Value)) +
+    )  |>
+    ggplot(aes(y = `Network Name`, x = d, color = hedges_g)) +
     geom_boxplot(outlier.shape = NA) +
     scattermore::geom_scattermore(
       pointsize = 5,
@@ -353,7 +338,8 @@ make_peak_bynetwork <- function(space, data_topo_gold, gold_peaks, at) {
     facet_grid(`N Sub` ~ Task) +
     scale_color_viridis_c(
       option = "turbo",
-      guide = guide_colorbar("Cohen's d")
+      guide = guide_colorbar("Cohen's d"),
+      limits = c(0, 1.25)
     ) +
     ylab("Network") +
     scale_x_continuous("avg dist(Gold Standard Peak, Study Peak) (mm)") +
@@ -366,6 +352,7 @@ make_topo <- function(
     data_topo_study_to_study,
     data_topo_sub_to_sub) {
   a <- data_topo_gold |>
+    mask_gray() |>
     ggplot() +
     facet_wrap(~Task) +
     scattermore::geom_scattermore(aes(x = cope, y = sigma), alpha = 0.1, pointsize = 1) +
@@ -383,7 +370,7 @@ make_topo <- function(
     ) +
     xlab(expression(beta ~ mean)) +
     ylab(expression(beta ~ SD))
-
+  
   b <- data_topo_gold_to_study |>
     dplyr::mutate(`N Sub` = factor(n_sub)) |>
     ggplot(aes(x = rho, y = `N Sub`)) +
@@ -396,7 +383,7 @@ make_topo <- function(
       alpha = 0.1
     ) +
     xlab("Rank Correlation\n(Gold to Study)")
-
+  
   cc <- data_topo_study_to_study |>
     ggplot(aes(x = rr, y = `N Sub`, color = Task)) +
     geom_line(aes(group = Task)) +
@@ -405,7 +392,7 @@ make_topo <- function(
     theme(
       legend.position = "bottom"
     )
-
+  
   d <- data_topo_sub_to_sub |>
     dplyr::filter(!is.na(rho), stringr::str_detect(task, "EMOTION", TRUE)) |>
     ggplot(aes(x = rho, y = task)) +
@@ -414,19 +401,20 @@ make_topo <- function(
     ) +
     ylab("Task") +
     xlab("Pairwise Product-Moment Correlation\n(Sub to Sub)")
-
+  
   a + b + cc + d +
     patchwork::plot_layout(ncol = 1) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
     theme_gray(base_size = 8) +
-      theme(
-        legend.position = "bottom",
-        legend.key.size = unit(8, "pt")
-      )
+    theme(
+      legend.position = "bottom",
+      legend.key.size = unit(8, "pt")
+    )
 }
 
 make_prop_effect_size <- function(data_topo_gold) {
   data_topo_gold |>
+    mask_gray() |>
     dplyr::filter(!is.na(d)) |>
     dplyr::count(Task, d, name = "N") |>
     dplyr::group_by(Task) |>
@@ -439,15 +427,26 @@ make_prop_effect_size <- function(data_topo_gold) {
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
 }
 
-make_topo_bynetwork <- function(pop_cor_region) {
+make_topo_bynetwork <- function(pop_cor_region, data_topo_gold, at) {
+  
+  roi_gold <- data_topo_gold |>
+    dplyr::left_join(at, by = dplyr::join_by(x, y, z)) |>
+    dplyr::filter(!is.na(label)) |>
+    dplyr::mutate(
+      Network =
+        dplyr::if_else(is.na(`Network Name`) & !is.na(label), "subcortical", `Network Name`)) |>
+    dplyr::summarise(
+      hedges_g = mean(cope / sigma * correct_d(n_sub)),
+      .by = c(Task, Network))
+  
   pop_cor_region |>
     dplyr::mutate(
       f = atanh(rho),
-      `Network Name` =
+      Network =
         dplyr::if_else(is.na(`Network Name`) & !is.na(label), "subcortical", `Network Name`)
     ) |>
     dplyr::filter(!is.na(rho) & is.finite(f)) |>
-    dplyr::group_by(Task, n_sub, ContrastName, method, `Network Name`, iter) |>
+    dplyr::group_by(Task, n_sub, ContrastName, method, Network, iter) |>
     dplyr::summarise(
       f = mean(f),
       N = dplyr::n(),
@@ -457,11 +456,19 @@ make_topo_bynetwork <- function(pop_cor_region) {
       rr = tanh(f),
       `N Sub` = factor(n_sub)
     ) |>
-    ggplot(aes(y = rr, x = `N Sub`, color = `Network Name`)) +
-    facet_wrap(~Task) +
+    dplyr::left_join(roi_gold, by = dplyr::join_by(Task, Network)) |>
+    ggplot(aes(x = rr, y = Network, color = hedges_g)) +
+    facet_grid(`N Sub`~Task) +
     geom_boxplot(outlier.alpha = 0.25) +
-    scale_color_viridis_d(option = "turbo") +
-    ylab("Rank Correlation with Reference") +
+    scale_color_viridis_c(
+      option = "turbo",
+      guide = guide_colorbar("Cohen's d")
+    ) +
+    scale_x_continuous(
+      "Rank Correlation with Reference",
+      labels = c(0, 0.5, 1),
+      breaks = c(0, 0.5, 1)) +
+    theme_gray(base_size = 8) +
     theme(legend.position = "bottom")
 }
 
@@ -494,7 +501,7 @@ make_model <- function(
     scale_x_log10("N Sub") +
     ylab("Average Rank Correlation (CI)\nPrediction-Truth (gF)") +
     theme(legend.position = "bottom")
-
+  
   b <- data_model_study_to_study |>
     dplyr::filter(confounds == "True") |>
     dplyr::filter(
@@ -507,7 +514,7 @@ make_model <- function(
     geom_errorbar(aes(ymin = lower, ymax = upper)) +
     xlab("N Sub") +
     ylab("ICC")
-
+  
   cc <- data_model_sub_to_sub |>
     dplyr::filter(confounds) |>
     dplyr::filter(stringr::str_detect(task, "EMOTION", TRUE)) |>
@@ -515,22 +522,23 @@ make_model <- function(
     ggdist::stat_dots(quantiles = 100) +
     ylab("Task") +
     xlab("Pairwise Rank Correlation of Features\n(Sub to Sub)")
-
+  
   a + b + cc +
     patchwork::plot_layout(ncol = 1) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
     theme_gray(base_size = 8) +
-      theme(
-        legend.position = "bottom",
-        legend.key.size = unit(8, "pt")
-      )
+    theme(
+      legend.position = "bottom",
+      legend.key.size = unit(8, "pt")
+    )
 }
 
 make_all_cog <- function(data_model_gold_gold_to_study) {
   data_model_gold_gold_to_study |>
     dplyr::filter(
       type == "simulation",
-      stringr::str_detect(task, "EMOTION", TRUE)
+      stringr::str_detect(task, "EMOTION", TRUE),
+      confounds == "True"
     ) |>
     dplyr::mutate(max_avg = max(avg), .by = c(measure)) |>
     dplyr::mutate(
@@ -553,7 +561,9 @@ make_all_cog <- function(data_model_gold_gold_to_study) {
 
 make_model_all_icc <- function(data_model_study_to_study, type) {
   data_model_study_to_study |>
-    dplyr::filter(stringr::str_detect(task, "EMOTION", TRUE)) |>
+    dplyr::filter(
+      stringr::str_detect(task, "EMOTION", TRUE),
+      confounds == "True") |>
     dplyr::filter(type == .env$type) |>
     dplyr::mutate(max_avg = max(icc), .by = c(measure)) |>
     dplyr::mutate(
