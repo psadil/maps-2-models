@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=palm
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=2G
+#SBATCH --time=1:00:00
+#SBATCH -o data-raw/logs/palm_%a
+#SBATCH --constraint="intel"
+#SBATCH --array=1
+
+ml matlab
+ml fsl
+export PATH=/fastscratch/myscratch/pssadil/meta/tools:/fastscratch/myscratch/pssadil/PALM:/users/pssadil/workbench/bin_rh_linux64:${PATH}
+
+cmd=$( sed "${SLURM_ARRAY_TASK_ID}q;d" palm_cmds )
+
+eval "${cmd}"

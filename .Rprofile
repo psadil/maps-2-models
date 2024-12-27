@@ -6,6 +6,7 @@ options("readr.num_threads" = 1)
 Sys.setenv(FSLDIR="/Users/psadil/fsl")
 Sys.setenv(PATH=paste(glue::glue("{Sys.getenv('FSLDIR')}/share/fsl/bin"), Sys.getenv("PATH"), sep = ":"))
 Sys.setenv(BASH_ENV="~/.profile")
+options("ciftiTools_wb_path" = "/Applications/workbench/bin_macosxub/wb_command")
 # options(renv.config.pak.enabled=TRUE)
 
 ## For Linux and Windows users, we'll use RStudio Package Manager (RSPM).

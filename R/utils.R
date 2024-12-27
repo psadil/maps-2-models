@@ -102,3 +102,23 @@ to_tbl <- function(file, measure = "value", volumes = NULL) {
   value <- RNifti::readNifti(file, volumes = volumes)
   to_tbl0(value, measure = measure)
 }
+
+
+xii_to_tbl <- function(xii){
+  as.matrix(xii) |>
+    dplyr::as_tibble() |>
+    dplyr::mutate(v = dplyr::row_number()) 
+}
+
+
+tbl_from_cifti <- function(file){
+  ciftiTools::read_xifti(file, flat = TRUE) |>
+    t() |>
+    dplyr::as_tibble() |>
+    dplyr::mutate(t = dplyr::row_number()) |>
+    tidyr::pivot_longer(-t, names_prefix = "V") |>
+    dplyr::mutate(name = as.integer(name))
+}
+
+
+

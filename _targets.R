@@ -1,4 +1,14 @@
-Sys.setenv(TAR_PROJECT = "hcp_ptfce")
+# TODO: double-check z-stat calculations (dof/cifti writing/header)
+# TODO: make permutation test for ciftis
+
+#' TODO: distances in surface
+#' -cifti-create-dense-from-template
+#' threshold tfce_tstat_c1 by tfce_tstat_fwep_c1 (neg).
+#' find extrema with -cifti-extrema
+#' -cifti-export-dense-mapping to produce indices
+#' in R, create table of indices/extrema, then filter and store
+#' -surface-geodesic-distance to make dconn files (one file per extrema)
+#' load dconns, filter such that to/from are both extrema
 
 library(targets)
 library(tarchetypes)
@@ -13,176 +23,151 @@ source(here::here("R", "figures.R"))
 source(here::here("R", "pairwise.R"))
 source(here::here("R", "model.R"))
 source(here::here("R", "manuscript.R"))
+source(here::here("R", "roi.R"))
+source(here::here("R", "topo.R"))
+source(here::here("R", "ukb.R"))
 
 Sys.setenv(
-  # NIIDIR = here::here("data-raw", "hcp-niis-ptfce")
-  NIIDIR = "/Users/psadil/Library/CloudStorage/OneDrive-JohnsHopkins/Documents/manuscripts/maps-to-models/meta/hcp-niis-ptfce",
-  HCPPARQUET = "/Users/psadil/Library/CloudStorage/OneDrive-JohnsHopkins/data/hcp-to-parquet/data/out"
+  NIIDIR = here::here("data-raw", "hcp-niis-ptfce"),
+  HCPPARQUET = "/Users/psadil/Library/CloudStorage/OneDrive-JohnsHopkins/data/hcp-to-parquet/data/out",
+  PALMBIN = "/fastscratch/myscratch/pssadil/PALM/palm"
 ) # explicitly avoiding tracking this
 
-# controller_small <- crew::crew_controller_local(
-#   name = "small",
-#   workers = 1,
-# )
-# 
+controller_small <- crew::crew_controller_local(
+  name = "small",
+  workers = 10
+)
+
 # controller_large <- crew::crew_controller_local(
 #   name = "large",
 #   workers = 5,
+# )
+
+# controller_slurm <- crew.cluster::crew_controller_slurm(
+#   name = "slurm",
+#   workers = 2,
+#   script_lines = "source ~/.bashrc; mamba activate meta; ml fsl",
+#   slurm_memory_gigabytes_per_cpu=2,
+#   slurm_cpus_per_task=1,
+#   slurm_time_minutes=10,
+#   slurm_partition="shared",
+#   command_submit = '/usr/bin/sbatch --constraint="intel"'
 # )
 
 
 targets::tar_option_set(
   format = "qs",
   storage = "worker",
-  packages = c("oro.nifti")
-  # controller = crew::crew_controller_group(controller_small, controller_large),
-  # resources = tar_resources(
-  #   crew = tar_resources_crew(controller = "large")
-  # )
+  packages = c("oro.nifti"),
+  controller = crew::crew_controller_group(controller_small),
+  resources = tar_resources(
+    crew = tar_resources_crew(controller = "small")
+  )
 )
+
+
 
 
 list(
   tar_group_by(
     contrasts,
-    readr::read_csv(here::here("data-raw", "hcp", "contrasts.csv")) |>
-      dplyr::filter(
-        !Task == "EMOTION",
-        (Task == "WM" & CopeNumber %in% c(11)) |
-          (Task == "GAMBLING" & CopeNumber %in% c(6)) |
-          (Task == "MOTOR" & CopeNumber %in% c(7)) |
-          (Task == "LANGUAGE" & CopeNumber %in% c(3)) |
-          (Task == "SOCIAL" & CopeNumber %in% c(3)) |
-          (Task == "RELATIONAL" & CopeNumber %in% c(3))
-      ),
-    Task, CopeNumber
+    get_hcp_contrasts(),
+    Task, CopeNumber,
+    format = "parquet"
   ),
+  tar_target(test, get_hcp_copes(contrasts), format = "parquet"),
+  tar_target(test_ukb, get_ukb_copes("data-raw/ukb_copes"), format = "parquet"),
   tar_target(
-    test,
-    contrasts |>
-      dplyr::mutate(
-        avail = purrr::map2(
-          Task, CopeNumber,
-          ~ fs::dir_ls(
-            "data-raw/hcp",
-            recurse = TRUE,
-            glob = glue::glue("*{.x}*cope{.y}.feat*cope1*")
-          )
-        ),
-        avail = purrr::map(
-          avail,
-          ~ .x[
-            stringr::str_detect(
-              .x,
-              stringr::str_c(not_avail(), collapse = "|"),
-              negate = TRUE
-            )
-          ]
-        )
-      ),
-    pattern = map(contrasts)
-  ),
+    test_all, 
+    get_hcp_copes(contrasts, matching_only=FALSE), 
+    format = "parquet"),
   tar_target(n_sub, c(20, 40, 60, 80, 100)),
   tar_target(iter, seq_len(100)),
-  tar_target(
-    tfce,
-    test |>
-      dplyr::mutate(
-        tmp = purrr::map2(
-          avail, ContrastName,
-          ~ do_ptfce(
-            .x,
-            n_sub = n_sub,
-            iter = iter,
-            storage_dir = Sys.getenv("NIIDIR"),
-            flags = .y,
-            resample = TRUE
-          )
-        )
-      ) |>
-      tidyr::unnest(tmp),
-    pattern = cross(n_sub, iter, map(test))
+  tar_group_by(
+    hcp_samples,
+    sample_hcp(test=test, n_iter=100, n_subs=c(20, 40, 60, 80, 100)),
+    Task, CopeNumber, type, iter, n_sub,
+    format = "parquet"
+  ),
+  tar_group_by(
+    ukb_samples,
+    sample_ukb(test=test_ukb, n_iter=100, n_subs=c(20, 40, 60, 80, 100, 1000, 10000)),
+    Task, CopeNumber, type, iter, n_sub,
+    format = "parquet"
+  ),
+  tar_group_by(
+    hcp_samples_all,
+    sample_hcp(
+      test=test_all, 
+      n_iter=100, 
+      n_subs=c(20, 40, 60, 80, 100),
+      types = c("MSMALL")),
+    Task, CopeNumber, type, iter, n_sub,
+    format = "parquet"
   ),
   tar_target(
-    tfce_pop,
-    test |>
-      dplyr::mutate(
-        tmp = purrr::map2(
-          avail, ContrastName,
-          ~ do_ptfce(
-            .x,
-            n_sub = length(.x),
-            iter = 0,
-            storage_dir = Sys.getenv("NIIDIR"),
-            flags = .y,
-            resample = FALSE,
-            enhance = FALSE
-          )
-        )
-      ) |>
-      tidyr::unnest(tmp),
-    pattern = map(test)
+    roi_avg,
+    avg_roi(test, n_parcels),
+    pattern = cross(test, n_parcels),
+    format = "parquet"
   ),
+  tar_target(
+    rois,
+    test_roi(roi_avg, hcp_samples),
+    pattern = map(hcp_samples),
+    format = "parquet"
+  ),
+  tar_target(rois_pop, test_roi_pop(roi_avg), format = "parquet"),
+  tar_target(
+    roi_avg_ukb,
+    avg_roi_ukb(test_ukb, n_parcels),
+    pattern = cross(test_ukb, n_parcels),
+    format = "parquet"
+  ),
+  tar_target(roi_avg_ukb2, roi_avg_ukb, format = "parquet"),
+  tar_target(
+    rois_ukb,
+    test_roi(roi_avg_ukb2, ukb_samples),
+    pattern = map(ukb_samples),
+    format = "parquet"
+  ),
+  tar_target(rois_pop_ukb, test_roi_pop(roi_avg_ukb), format = "parquet"),
+  # strategy for palm: create commands, then rn with slurm array
+  tar_target(tfce, get_tfce_cmd(hcp_samples, test), format = "parquet"),
+  tar_target(tfce_pop, get_tfce_pop(test), format = "parquet"),
   tar_target(at, make_atlas_full()),
-  tar_target(n_parcels, c(200, 400, 600, 800, 1000)),
+  # tar_target(n_parcels, c(200, 400, 600, 800, 1000)),
+  tar_target(n_parcels, c(400)),
   tar_target(
     at_list,
     make_atlas_full(n_parcels = n_parcels),
     pattern = map(n_parcels)
   ),
   tar_target(
-    gold_peaks,
-    dplyr::mutate(
-      tfce_pop,
-      m = purrr::map(
-        .data$ptfce,
-        ~ get_ptfce_maxes_pop(q = .x, cluster_thresh = 0.001, minextent = 0)
-      )
-    )
+    ptfce, 
+    do_ptfce2(hcp_samples=hcp_samples, test=test, enhance=TRUE),
+    pattern = map(hcp_samples),
+    format = "parquet"
   ),
-  tar_target(corrp_thresh, c(0.95)),
+  tar_target(ptfce_pop, do_ptfce_pop(test), format = "parquet"),
+  tar_target(
+    gold_peaks,
+    get_ptfce_maxes_pop(ptfce_pop),
+    pattern = map(ptfce_pop),
+    format = "parquet"
+  ),
+  tar_target(do_fwe_correction, c(TRUE, FALSE)),
   tar_target(
     maxes,
-    dplyr::mutate(
-      tfce,
-      m = purrr::map(
-        .data$ptfce,
-        ~ get_ptfce_maxes(q = .x, corrp_thresh = corrp_thresh, minextent = 0)
-      ),
-      corrp_thresh = corrp_thresh
-    ),
-    pattern = cross(map(tfce), corrp_thresh)
+    get_ptfce_maxes(row=ptfce, do_fwe_correction=do_fwe_correction),
+    pattern = cross(map(ptfce), do_fwe_correction),
+    format = "parquet"
   ),
   tar_target(
-    space0,
-    dplyr::left_join(
-      maxes,
-      gold_peaks,
-      by = c("Task", "CopeNumber", "ContrastName", "tar_group"),
-      suffix = c(".study", ".ref")
-    ) |>
-      dplyr::mutate(
-        augmented = purrr::map2(
-          m.study, m.ref,
-          ~ augment_distance(
-            study = .x,
-            reference = .y,
-            vox_mm = 2
-          )
-        )
-      ) |>
-      dplyr::select(
-        n_sub = n_sub.study,
-        augmented,
-        iter = iter.study,
-        corrp_thresh,
-        Task,
-        CopeNumber,
-        n_pop = n_sub.ref
-      ) |>
-      tidyr::unnest(augmented)
+    augmented,
+    augment_distance2(maxes=maxes, gold_peaks=gold_peaks),
+    format = "parquet"
   ),
-  tar_target(space, add_labels(space = space0, at = at)),
   tar_target(
     tfce_null,
     do_ptfce(
@@ -205,10 +190,7 @@ list(
       flags = "2BK-0BK",
       resample = FALSE,
       enhance = FALSE
-    ) # ,
-    #    resources = tar_resources(
-    #      crew = tar_resources_crew(controller = "small")
-    #    )
+    )
   ),
   tar_target(
     active0_null,
@@ -225,63 +207,18 @@ list(
     format = format_arrow_table()
   ),
   tar_target(
-    rois,
-    test |>
-      dplyr::mutate(
-        tmp = purrr::map(
-          avail,
-          ~ do_roi(
-            .x,
-            n_sub = n_sub,
-            iter = iter,
-            at = at_list,
-            resample = TRUE
-          )
-        )
-      ) |>
-      tidyr::unnest(tmp) |>
-      dplyr::select(-avail),
-    pattern = cross(n_sub, iter, map(test), at_list),
+    roi_avg_all,
+    avg_roi(test_all, n_parcels),
+    pattern = cross(test_all, n_parcels),
     format = "parquet"
   ),
   tar_target(
-    rois_pop,
-    test |>
-      dplyr::mutate(
-        tmp = purrr::map(
-          avail,
-          ~ do_roi(
-            .x,
-            iter = 0,
-            at = at_list
-          )
-        )
-      ) |>
-      tidyr::unnest(tmp) |>
-      dplyr::select(-avail),
-    pattern = cross(map(test), at_list),
-    format = "parquet" # ,
-    # resources = tar_resources(
-    #   crew = tar_resources_crew(controller = "small")
-    # )
-  ),
-  tar_target(
-    gold_tested,
-    test_roi(rois_pop, Task, n_parcels),
-    pattern = map(rois_pop),
+    rois_all,
+    test_roi(roi_avg_all, hcp_samples_all),
+    pattern = map(hcp_samples_all),
     format = "parquet"
   ),
-  tar_target(
-    rois_tested,
-    test_roi(rois, Task, n_parcels, iter),
-    pattern = map(rois),
-    format = "parquet"
-  ),
-  tar_target(
-    rois_pop2,
-    rois_pop,
-    format = format_arrow_table()
-  ),
+  tar_target(rois_pop_all, test_roi_pop(roi_avg_all), format = "parquet"),
   tar_target(ContrastNames, contrasts$ContrastName),
   tar_target(
     pairwise,
@@ -309,53 +246,8 @@ list(
       subtask=dplyr::select(subtask, sub, task), 
       method="spearman"),
     map(subtask),
-    format = "parquet" # ,
-    # resources = tar_resources(
-    #   crew = tar_resources_crew(controller = "small")
-    # )
+    format = "parquet" 
   ),
-  tar_target(
-    maxes_no_thresh,
-    dplyr::mutate(
-      tfce,
-      m = purrr::map(
-        .data$ptfce,
-        ~ get_ptfce_maxes_pop(q = .x, minextent = 0, cluster_thresh = 0.0001)
-      ),
-      corrp_thresh = 0
-    ),
-    pattern = cross(map(tfce))
-  ),
-  tar_target(
-    space0_no_thresh,
-    dplyr::left_join(
-      maxes_no_thresh,
-      gold_peaks,
-      by = c("Task", "CopeNumber", "ContrastName", "tar_group"),
-      suffix = c(".study", ".ref")
-    ) |>
-      dplyr::mutate(
-        augmented = purrr::map2(
-          m.study, m.ref,
-          ~ augment_distance(
-            study = .x,
-            reference = .y,
-            vox_mm = 2
-          )
-        )
-      ) |>
-      dplyr::select(
-        n_sub = n_sub.study,
-        augmented,
-        iter = iter.study,
-        corrp_thresh,
-        Task,
-        CopeNumber,
-        n_pop = n_sub.ref
-      ) |>
-      tidyr::unnest(augmented)
-  ),
-  tar_target(space_no_thresh, add_labels(space = space0_no_thresh, at = at)),
   tar_target(
     data_peak_study_to_study,
     make_data_peak_study_to_study(
@@ -368,8 +260,8 @@ list(
   tar_target(
     data_roi_study_to_gold,
     make_data_roi_study_to_gold(
-      gold_tested = gold_tested,
-      rois_tested = rois_tested,
+      gold_tested = rois_pop,
+      rois_tested = rois,
       at_list=at_list,
       data_topo_gold=data_topo_gold
     ),
@@ -377,7 +269,7 @@ list(
   ),
   tar_target(
     data_roi_study_to_study,
-    make_data_roi_study_to_study(rois_tested = rois_tested),
+    make_data_roi_study_to_study(rois_tested = rois),
     format = "parquet"
   ),
   tar_target(

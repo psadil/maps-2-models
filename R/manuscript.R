@@ -10,7 +10,7 @@ make_roi <- function(
     ) +
     ggplot2::geom_point(alpha = 0.2) +
     ggplot2::geom_line(alpha = 0.2) +
-    facet_wrap(~Task) +
+    ggplot2::facet_grid(Task~type) +
     scale_y_continuous(
       "Proportion Simulations w/\nActivity in Most Active ROI",
       limits = c(0, 1),

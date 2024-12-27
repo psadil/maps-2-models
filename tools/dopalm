@@ -1,0 +1,103 @@
+#!/bin/bash
+
+set -eu
+
+TMPDIR="$(mktemp -d)"
+trap 'rm -r -- "${TMPDIR}"' EXIT
+
+dopalm() {
+
+    while getopts ":f:" opt; do
+        case $opt in
+            f)
+                local flag=$OPTARG
+                ;;
+            \?)
+                echo "Invalid option: -$OPTARG" >&2
+                ;;
+            :)
+                echo "Option -$OPTARG requires an argument." >&2
+                exit 1
+        esac
+    done
+    shift "$((OPTIND -1))"
+
+    # gather files
+    local niis=("$@")
+
+    if [[ ${niis[0]} == *"MSM"* ]]; then
+        local type=midthickness_MSMAll
+    else
+        local type=midthickness
+    fi
+
+    local L_giis=()
+    local R_giis=()
+    local L_vertex_areas=()
+    local R_vertex_areas=()
+    for nii in "${niis[@]}"; do
+        s=$(echo "${nii}" | grep -oP "[0-9]{6}")
+        mni=$(echo "${nii}" | grep -oP ".*MNINonLinear")
+        L_gii="${mni}"/fsaverage_LR32k/"${s}".L."${type}".32k_fs_LR.surf.gii
+        L_va=$(mktemp --suffix=.shape.gii -p "${TMPDIR}")
+        wb_command -surface-vertex-areas "${L_gii}" "${L_va}"
+        L_giis+=("${L_gii}")
+        L_vertex_areas+=("${L_va}")
+        R_gii="${mni}"/fsaverage_LR32k/"${s}".R."${type}".32k_fs_LR.surf.gii
+        R_va=$(mktemp --suffix=.shape.gii -p "${TMPDIR}")
+        wb_command -surface-vertex-areas "${R_gii}" "${R_va}"
+        R_giis+=("${R_gii}")
+        R_vertex_areas+=("${R_va}")
+    done
+    merged_series=$(mktemp --suffix=.dtseries.nii -p "${TMPDIR}")
+    data_sub=$(mktemp --suffix=.nii -p "${TMPDIR}")
+    data_L=$(mktemp --suffix=.func.gii -p "${TMPDIR}")
+    data_R=$(mktemp --suffix=.func.gii -p "${TMPDIR}")
+
+    wb_shortcuts -cifti-concatenate "${merged_series}" "${niis[@]}"
+    wb_command -cifti-separate "${merged_series}" COLUMN \
+        -volume-all "${data_sub}" \
+        -metric CORTEX_LEFT "${data_L}" \
+        -metric CORTEX_RIGHT "${data_R}"
+    
+    local L_MERGELIST=""
+    for va in "${L_vertex_areas[@]}" ; do
+        L_MERGELIST="${L_MERGELIST} -metric ${va}"
+    done
+
+    local R_MERGELIST=""
+    for va in "${R_vertex_areas[@]}" ; do
+        R_MERGELIST="${R_MERGELIST} -metric ${va}"
+    done
+
+    L_midthick_va=$(mktemp --suffix=.func.gii -p "${TMPDIR}")
+    L_area=$(mktemp --suffix=.func.gii -p "${TMPDIR}")
+    wb_command -metric-merge "${L_midthick_va}" ${L_MERGELIST}
+    wb_command -metric-reduce "${L_midthick_va}" MEAN "${L_area}"
+
+    R_midthick_va=$(mktemp --suffix=.func.gii -p "${TMPDIR}")
+    R_area=$(mktemp --suffix=.func.gii -p "${TMPDIR}")
+    wb_command -metric-merge "${R_midthick_va}" ${R_MERGELIST}
+    wb_command -metric-reduce "${R_midthick_va}" MEAN "${R_area}"
+
+    local L_MERGELIST=""
+    for gii in "${L_giis[@]}" ; do
+       L_MERGELIST="${L_MERGELIST} -surf ${gii}"
+    done
+    local R_MERGELIST=""
+    for gii in "${R_giis[@]}" ; do
+       R_MERGELIST="${R_MERGELIST} -surf ${gii}"
+    done
+    L_midthick=$(mktemp --suffix=.surf.gii -p "${TMPDIR}")
+    R_midthick=$(mktemp --suffix=.surf.gii -p "${TMPDIR}")
+    wb_command -surface-average "${L_midthick}" ${L_MERGELIST}
+    wb_command -surface-average "${R_midthick}" ${R_MERGELIST}
+
+    palm -i "${data_sub}" -o "${flag}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1
+    palm -i "${data_L}" -o "${flag}"_L -tfce2D -s "${L_midthick}" "${L_area}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1
+    palm -i "${data_R}" -o "${flag}"_R -tfce2D -s "${R_midthick}" "${R_area}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1
+
+}
+export -f dopalm
+
+dopalm "$@"

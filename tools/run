@@ -1,0 +1,14 @@
+#!/bin/bash
+#SBATCH --job-name=rois
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=10
+#SBATCH --mem=6G
+#SBATCH --time=2:00:00
+#SBATCH -o rois.log
+#SBATCH --constraint="intel"
+
+source ~/.bashrc
+
+mamba activate meta
+
+Rscript -e "targets::tar_make(rois)"

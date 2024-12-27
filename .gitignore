@@ -16,6 +16,7 @@ data-raw/*.jar
 data-raw/task_fMRI
 data-raw/T1
 _ale/objects
+data-raw/human-connectome-project-openaccess
 
 .ipynb_checkpoints
 
