@@ -1,0 +1,46 @@
+#!/bin/bash
+#SBATCH --job-name=warp
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=3G
+#SBATCH -o log/%A_%a.log
+#SBATCH --array 0-1
+#SBATCH --time=1:00:00
+
+batch=0
+n_max_array=10000
+
+module load fsl
+
+warp() { 
+    local infile="$1"
+    local sub
+    sub=$(echo "${infile}" | grep -oP "[0-9]{7}")
+    out=${MYSCRATCH}/ukb_mni/derivatives/sub-"${sub}"_task-EMOTION_space-MNI152_contrast-5_cope.nii.gz 
+    local statsdir
+    statsdir=$(dirname "${infile}")
+    local featdir
+    featdir=$(dirname "${statsdir}")
+    local warp="${featdir}"/reg/example_func2standard_warp
+
+
+    if [[ -f $out || ! -f $infile ]]; then
+        return
+    fi    
+
+    echo "working on ${sub}"
+    echo "${infile}"
+    echo "${out}"
+
+    applywarp \
+        -r "${FSLDIR}"/data/standard/MNI152_T1_2mm \
+        -i "${infile}" \
+        -w "${warp}" \
+        -o "${out}"
+
+}
+export -f warp
+
+readarray -t copes < ukb_copes
+i=$(( SLURM_ARRAY_TASK_ID + n_max_array*batch ))
+warp "${copes[$i]}"

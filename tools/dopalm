@@ -72,11 +72,13 @@ dopalm() {
 
     L_midthick_va=$(mktemp --suffix=.func.gii -p "${TMPDIR}")
     L_area=$(mktemp --suffix=.func.gii -p "${TMPDIR}")
+    # shellcheck disable=SC2086
     wb_command -metric-merge "${L_midthick_va}" ${L_MERGELIST}
     wb_command -metric-reduce "${L_midthick_va}" MEAN "${L_area}"
 
     R_midthick_va=$(mktemp --suffix=.func.gii -p "${TMPDIR}")
     R_area=$(mktemp --suffix=.func.gii -p "${TMPDIR}")
+    # shellcheck disable=SC2086
     wb_command -metric-merge "${R_midthick_va}" ${R_MERGELIST}
     wb_command -metric-reduce "${R_midthick_va}" MEAN "${R_area}"
 
@@ -90,13 +92,28 @@ dopalm() {
     done
     L_midthick=$(mktemp --suffix=.surf.gii -p "${TMPDIR}")
     R_midthick=$(mktemp --suffix=.surf.gii -p "${TMPDIR}")
+    # shellcheck disable=SC2086
     wb_command -surface-average "${L_midthick}" ${L_MERGELIST}
+    # shellcheck disable=SC2086
     wb_command -surface-average "${R_midthick}" ${R_MERGELIST}
 
-    palm -i "${data_sub}" -o "${flag}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1
-    palm -i "${data_L}" -o "${flag}"_L -tfce2D -s "${L_midthick}" "${L_area}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1
-    palm -i "${data_R}" -o "${flag}"_R -tfce2D -s "${R_midthick}" "${R_area}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1
+    if [[ ! -f ${flag}_tfce_tstat_c1.nii ]]; then
+        palm -i "${data_sub}" -o "${flag}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1
+    else
+        echo "found ${flag} subcortex, skipping"
+    fi
+    
+    if [[ ! -f ${flag}_L_tfce_tstat_c1.gii ]]; then
+        palm -i "${data_L}" -o "${flag}"_L -tfce2D -s "${L_midthick}" "${L_area}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1
+    else
+        echo "found ${flag} L, skipping"
+    fi
 
+    if [[ ! -f ${flag}_R_tfce_tstat_c1.gii ]]; then
+        palm -i "${data_R}" -o "${flag}"_R -tfce2D -s "${R_midthick}" "${R_area}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1
+    else
+        echo "found ${flag} R, skipping"
+    fi
 }
 export -f dopalm
 

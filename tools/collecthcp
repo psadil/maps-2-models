@@ -6,12 +6,20 @@ rsync \
     --info=progress2 \
     --include="cope1.nii.gz" \
     --include="zstat1.nii.gz" \
+    --include="cope1.dtseries.nii" \
+    --include="zstat1.dtseries.nii" \
     --include="tfMRI_GAMBLING_hp200_s4_level2vol.feat/cope6.feat" \
     --include="tfMRI_LANGUAGE_hp200_s4_level2vol.feat/cope3.feat" \
     --include="tfMRI_MOTOR_hp200_s4_level2vol.feat/cope7.feat" \
     --include="tfMRI_RELATIONAL_hp200_s4_level2vol.feat/cope3.feat" \
     --include="tfMRI_SOCIAL_hp200_s4_level2vol.feat/cope3.feat" \
     --include="tfMRI_WM_hp200_s4_level2vol.feat/cope11.feat" \
+    --include="tfMRI_GAMBLING_hp200_s4_level2_MSMAll.feat/GrayordinatesStats/cope6.feat" \
+    --include="tfMRI_LANGUAGE_hp200_s4_level2_MSMAll.feat/GrayordinatesStats/cope3.feat" \
+    --include="tfMRI_MOTOR_hp200_s4_level2_MSMAll.feat/GrayordinatesStats/cope7.feat" \
+    --include="tfMRI_RELATIONAL_hp200_s4_level2_MSMAll.feat/GrayordinatesStats/cope3.feat" \
+    --include="tfMRI_SOCIAL_hp200_s4_level2_MSMAll.feat/GrayordinatesStats/cope3.feat" \
+    --include="tfMRI_WM_hp200_s4_level2_MSMAll.feat/GrayordinatesStats/cope11.feat" \
     --exclude="cope*.feat" \
     --exclude="*gz" \
     --exclude="*level2.feat" \
@@ -41,7 +49,10 @@ rsync \
     --exclude=HCP_disk1 \
     --exclude=HCP_disk1_NN \
     --exclude=99_100307 \
-    /dcs04/legacy-dcs01-oasis/hpc/ /fastscratch/myscratch/pssadil/hcp/
+    --exclude=tfMRI_MOVIE1_7T_AP \
+    --exclude=tfMRI_7T_RETCCW_AP_RETCW_PA_RETEXP_AP_RETCON_PA_RETBAR1_AP_RETBAR2_PA \
+    --exclude=tfMRI_MOVIE2_7T_PA \
+    /dcs07/smart/data/human-connectome-project-openaccess/HCP /fastscratch/myscratch/pssadil/hcp/
     
 rsync \
     -rlpgoDh \

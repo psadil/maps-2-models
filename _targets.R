@@ -26,16 +26,18 @@ source(here::here("R", "manuscript.R"))
 source(here::here("R", "roi.R"))
 source(here::here("R", "topo.R"))
 source(here::here("R", "ukb.R"))
+source(here::here("R", "cifti.R"))
 
 Sys.setenv(
   NIIDIR = here::here("data-raw", "hcp-niis-ptfce"),
+  PALMDIR = here::here("data-raw", "palm"),
   HCPPARQUET = "/Users/psadil/Library/CloudStorage/OneDrive-JohnsHopkins/data/hcp-to-parquet/data/out",
   PALMBIN = "/fastscratch/myscratch/pssadil/PALM/palm"
 ) # explicitly avoiding tracking this
 
 controller_small <- crew::crew_controller_local(
   name = "small",
-  workers = 10
+  workers = 1
 )
 
 # controller_large <- crew::crew_controller_local(
@@ -64,8 +66,6 @@ targets::tar_option_set(
     crew = tar_resources_crew(controller = "small")
   )
 )
-
-
 
 
 list(
@@ -132,11 +132,21 @@ list(
     format = "parquet"
   ),
   tar_target(rois_pop_ukb, test_roi_pop(roi_avg_ukb), format = "parquet"),
-  # strategy for palm: create commands, then rn with slurm array
+  # strategy for palm: create commands, then run with slurm array
   tar_target(tfce, get_tfce_cmd(hcp_samples, test), format = "parquet"),
   tar_target(tfce_pop, get_tfce_pop(test), format = "parquet"),
+  # this is back in R/targets (assumes above have been created)
+  tar_target(
+    study_peaks, 
+    get_study_peaks_cifti(tfce), 
+    format="parquet",
+    pattern = head(map(tfce), 10)),
+  tar_target(
+    study_to_gold_distances,
+    get_cifti_augmented2(study_peaks, tfce_pop), 
+    format="parquet"
+  ),
   tar_target(at, make_atlas_full()),
-  # tar_target(n_parcels, c(200, 400, 600, 800, 1000)),
   tar_target(n_parcels, c(400)),
   tar_target(
     at_list,
@@ -337,24 +347,6 @@ list(
       gold_peaks = gold_peaks
     ),
     format = "parquet"
-  ),
-  tar_target(
-    tfce_pop_fsl,
-    test |>
-      dplyr::mutate(
-        tmp = purrr::map2(
-          avail, ContrastName,
-          ~ do_tfce_pop2(
-            .x,
-            n_sub = length(.x),
-            iter = 0,
-            storage_dir = Sys.getenv("NIIDIR"),
-            flags = .y
-          )
-        )
-      ) |>
-      tidyr::unnest(tmp),
-    pattern = map(test)
   ),
   tar_target(data_topo_gold, get_pop_d(tfce_pop_fsl)),
   tar_target(

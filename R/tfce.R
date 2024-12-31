@@ -47,9 +47,8 @@ do_tfce_pop2 <- function(
     cope_files,
     n_sub,
     iter,
-    output,
     mask = MNITemplate::getMNIPath("Brain_Mask", "2mm"),
-    storage_dir = here::here("data-raw", "niis"),
+    storage_dir = Sys.getenv("NIIDIR"),
     flags = "") {
   merged <- fsl_merge_long(cope_files)
   
@@ -135,7 +134,7 @@ get_tfce_cmd <- function(hcp_samples, test, n = 10000) {
   dplyr::tibble(filestem=stem, cmd=cmd)
 }
 
-get_tfce_pop <- function(test, n = 10000) {
+get_tfce_pop <- function(test, n = 1) {
   
   test |>
     tidyr::pivot_longer(c(MSMALL, SURFACE, VOL), names_to = "type") |>

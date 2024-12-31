@@ -1,0 +1,9 @@
+#!/bin/bash
+
+fd \
+  -j 2 \
+  -t d \
+  -E "*level2vol.feat" \
+  -E "*level2.feat" \
+  s4_level2_MSMAll.feat /dcs07/smart/data/human-connectome-project-openaccess/HCP 
+  | sort > data-raw/msmall_feat

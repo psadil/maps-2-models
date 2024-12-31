@@ -1,0 +1,5 @@
+#!/bin/bash
+
+for src in 1000subjects_reference Parcellations cpm-difumo2  cpm-difumo.parquet out-perm-cpm-preds-sametest out-perm-cpm-sametest out-perm-gold-cpm-preds-sametest out-perm-gold-cpm-sametest; do 
+    tar --use-compress-program=pigz -cf ${src}.tgz ${src}
+done
