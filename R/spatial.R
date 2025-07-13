@@ -10,7 +10,7 @@ make_atlas <- function(labelxml, nii) {
       label = purrr::map_chr(value, ~.x)
     ) |>
     dplyr::select(index, label)
-  
+
   neurobase::readnii(nii) |>
     neurobase::img_indices(add_values = TRUE) |>
     tibble::as_tibble() |>
@@ -20,7 +20,7 @@ make_atlas <- function(labelxml, nii) {
 }
 
 
-rename_labels <- function(.data){
+rename_labels <- function(.data) {
   .data |>
     dplyr::mutate(
       label = dplyr::case_match(
@@ -43,20 +43,23 @@ rename_labels <- function(.data){
         .default = label
       )
     ) |>
-    dplyr::filter(stringr::str_detect(label, "Cerebell", negate=TRUE)) |>
-    dplyr::filter(stringr::str_detect(label, "Diencephalon", negate=TRUE))
+    dplyr::filter(stringr::str_detect(label, "Cerebell", negate = TRUE)) |>
+    dplyr::filter(stringr::str_detect(label, "Diencephalon", negate = TRUE))
 }
 
 
 make_atlas_full <- function(networks = 7, n_parcels = 400) {
   # cortical labels for Schaefer2018_400Parcels_17Networks_order.lut
   # subcortical from harvard-oxford
-  
+
   # always remove all brain-setm/white matter/cortex from subcortical, and always
   # defer to cortical when available
   c_labels <- readr::read_delim(
     here::here(
-      "data-raw", "Parcellations", "MNI", "fsleyes_lut",
+      "data-raw",
+      "Parcellations",
+      "MNI",
+      "fsleyes_lut",
       glue::glue("Schaefer2018_{n_parcels}Parcels_{networks}Networks_order.lut")
     ),
     col_names = c("index", "R", "G", "B", "label"),
@@ -72,33 +75,43 @@ make_atlas_full <- function(networks = 7, n_parcels = 400) {
           "data-raw",
           "1000subjects_reference",
           "Yeo_JNeurophysiol11_SplitLabels",
-          glue::glue("Yeo2011_{networks}networks_N1000.split_components.glossary.csv")
+          glue::glue(
+            "Yeo2011_{networks}networks_N1000.split_components.glossary.csv"
+          )
         ),
         show_col_types = FALSE
       ),
       by = "Label Name"
     )
-  
+
   cortical <- to_tbl(
     here::here(
       "data-raw",
       "Parcellations",
       "MNI",
-      glue::glue("Schaefer2018_{n_parcels}Parcels_{networks}Networks_order_FSLMNI152_2mm.nii.gz")
+      glue::glue(
+        "Schaefer2018_{n_parcels}Parcels_{networks}Networks_order_FSLMNI152_2mm.nii.gz"
+      )
     ),
     "index"
   ) |>
     dplyr::filter(index > 0) |>
     dplyr::left_join(c_labels, by = "index")
-  
+
   subcortical <- make_atlas(
     fs::path(fslr::fsldir(), "data/atlases/HarvardOxford-Subcortical.xml"),
-    fs::path(fslr::fsldir(), "data/atlases/HarvardOxford/HarvardOxford-sub-maxprob-thr0-2mm.nii.gz")
+    fs::path(
+      fslr::fsldir(),
+      "data/atlases/HarvardOxford/HarvardOxford-sub-maxprob-thr0-2mm.nii.gz"
+    )
   ) |>
-    dplyr::filter(stringr::str_detect(label, "Cortex|Matter|Ventricle", negate = TRUE)) |>
+    dplyr::filter(stringr::str_detect(
+      label,
+      "Cortex|Matter|Ventricle",
+      negate = TRUE
+    )) |>
     dplyr::anti_join(cortical, by = c("x", "y", "z")) # take only voxels not otherwise accounted for
-  
-  
+
   dplyr::bind_rows(cortical, subcortical) |>
     dplyr::mutate(
       hemi = dplyr::if_else(x > 45, "Left", "Right")
@@ -120,12 +133,15 @@ make_atlas_full <- function(networks = 7, n_parcels = 400) {
 make_atlas_full2 <- function(networks = 7, n_parcels = 400) {
   # cortical labels for Schaefer2018_400Parcels_17Networks_order.lut
   # subcortical from harvard-oxford
-  
+
   # always remove all brain-setm/white matter/cortex from subcortical, and always
   # defer to cortical when available
   c_labels <- readr::read_delim(
     here::here(
-      "data-raw", "Parcellations", "MNI", "fsleyes_lut",
+      "data-raw",
+      "Parcellations",
+      "MNI",
+      "fsleyes_lut",
       glue::glue("Schaefer2018_{n_parcels}Parcels_{networks}Networks_order.lut")
     ),
     col_names = c("index", "R", "G", "B", "label"),
@@ -141,33 +157,44 @@ make_atlas_full2 <- function(networks = 7, n_parcels = 400) {
           "data-raw",
           "1000subjects_reference",
           "Yeo_JNeurophysiol11_SplitLabels",
-          glue::glue("Yeo2011_{networks}networks_N1000.split_components.glossary.csv")
+          glue::glue(
+            "Yeo2011_{networks}networks_N1000.split_components.glossary.csv"
+          )
         ),
         show_col_types = FALSE
       ),
       by = "Label Name"
     )
-  
+
   cortical <- to_tbl(
     here::here(
       "data-raw",
       "Parcellations",
       "MNI",
-      glue::glue("Schaefer2018_{n_parcels}Parcels_{networks}Networks_order_FSLMNI152_2mm.nii.gz")
+      glue::glue(
+        "Schaefer2018_{n_parcels}Parcels_{networks}Networks_order_FSLMNI152_2mm.nii.gz"
+      )
     ),
     "index"
   ) |>
     dplyr::filter(index > 0) |>
     dplyr::left_join(c_labels, by = "index")
-  
+
   subcortical <- make_atlas(
     fs::path(fslr::fsldir(), "data/atlases/HarvardOxford-Subcortical.xml"),
-    fs::path(fslr::fsldir(), "data/atlases/HarvardOxford/HarvardOxford-sub-maxprob-thr0-2mm.nii.gz")
+    fs::path(
+      fslr::fsldir(),
+      "data/atlases/HarvardOxford/HarvardOxford-sub-maxprob-thr0-2mm.nii.gz"
+    )
   ) |>
-    dplyr::filter(stringr::str_detect(label, "Brain-Stem|Cortex|Matter|Ventricle", negate = TRUE)) |>
+    dplyr::filter(stringr::str_detect(
+      label,
+      "Brain-Stem|Cortex|Matter|Ventricle",
+      negate = TRUE
+    )) |>
     dplyr::mutate(label = stringr::str_remove(label, "Left |Right ")) |>
     dplyr::anti_join(cortical, by = c("x", "y", "z")) # take only voxels not otherwise accounted for
-  
+
   dplyr::bind_rows(cortical, subcortical) |>
     dplyr::mutate(
       hemi = dplyr::if_else(x > 45, "Left", "Right")
@@ -205,7 +232,11 @@ augment_distance <- function(study, reference, vox_mm = 2) {
   }
   reference |>
     dplyr::rowwise() |>
-    dplyr::mutate(study_ind = which.min(sqrt((x - study$x)^2 + (y - study$y)^2 + (z - study$z)^2))) |>
+    dplyr::mutate(
+      study_ind = which.min(sqrt(
+        (x - study$x)^2 + (y - study$y)^2 + (z - study$z)^2
+      ))
+    ) |>
     dplyr::ungroup() |>
     dplyr::mutate(
       x.study = study$x[study_ind],
@@ -215,23 +246,24 @@ augment_distance <- function(study, reference, vox_mm = 2) {
     )
 }
 
-augment_distance2 <- function(maxes, gold_peaks){
-  
+augment_distance2 <- function(maxes, gold_peaks) {
   gold <- dplyr::group_nest(gold_peaks, Task)
-  
+
   maxes |>
     dplyr::group_nest(Task, n_sub, iter, fwe_correction) |>
     dplyr::left_join(
-      gold, 
-      by = dplyr::join_by(Task), 
+      gold,
+      by = dplyr::join_by(Task),
       suffix = c(".study", ".ref")
     ) |>
     dplyr::mutate(
       m = purrr::map2(
-        data.study, data.ref,
-        ~augment_distance(
-          study=.x,
-          reference=.y) |>
+        data.study,
+        data.ref,
+        ~ augment_distance(
+          study = .x,
+          reference = .y
+        ) |>
           dplyr::select(-n_sub, -iter)
       )
     ) |>
@@ -245,25 +277,23 @@ add_labels <- function(space, at = make_atlas_full()) {
 }
 
 
-
-load_parc <- function(n_parcels=400, src="data-raw/parc.rda") {
-  
+load_parc <- function(n_parcels = 400, src = "data-raw/parc.rda") {
   # Load the parcellation
   load(src)
   p <- parc[[glue::glue("Schaefer2018_{n_parcels}Parcels_7Networks_order")]]
-  
+
   # Format the parcellation as a \code{"xifti"}. Return it
   nv <- nrow(p$map) # 32492*2=64984
   np <- nrow(p$col) - 1
   z <- ciftiTools:::template_xifti()
-  z$data$cortex_left <- p$map[seq(nv/2),,drop=FALSE]
-  z$data$cortex_right <- p$map[seq(nv/2+1, nv),,drop=FALSE]
+  z$data$cortex_left <- p$map[seq(nv / 2), , drop = FALSE]
+  z$data$cortex_right <- p$map[seq(nv / 2 + 1, nv), , drop = FALSE]
   z$meta$cifti <- list(
-    intent=3007,
-    brainstructures=c("left", "right"),
-    names="parcels",
-    labels=list()
-    #misc = ...
+    intent = 3007,
+    brainstructures = c("left", "right"),
+    names = "parcels",
+    labels = list()
+    # misc = ...
   )
   z$meta$cifti$labels <- list(
     parcels = data.frame(
