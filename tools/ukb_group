@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=ukb_pop
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=16G
+#SBATCH -o data-raw/ukb_pop.log
+#SBATCH --time=6:00:00
+
+set -xeu
+
+#gunzip -k data-raw/ukb_mni_all.nii.gz
+
+echo "merging"
+#fslmerge -t data-raw/ukb_mni_all.nii.gz data-raw/ukb_mni/*gz
+echo "average"
+tools/niimath data-raw/ukb_mni_all.nii -Tmean data-raw/ukb_mni_all_tmean.nii.gz 
+echo "standard dev"
+tools/niimath data-raw/ukb_mni_all.nii -Tstd data-raw/ukb_mni_all_tstd.nii.gz 
+

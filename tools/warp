@@ -1,0 +1,52 @@
+#!/bin/bash
+#SBATCH --job-name=warp
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=3G
+#SBATCH -o data-raw/warp-log/ukbwarp_%a_3.log
+#SBATCH --array 1000-8347
+#SBATCH --time=1:00:00
+
+ROOT=/dcl01/smart/data/psadil/meta
+UKB_ROOT=/dcs07/smart/data/ukb/rawdata
+COPES_RAW=${ROOT}/data-raw/ukb_copes_raw
+UKB_SUBS=${ROOT}/data-raw/ukb_subs
+
+batch=3
+n_max_array=10000
+module load fsl
+
+set -eu
+
+warp() { 
+    local infile="$1"
+    local sub
+    sub=$(echo "${infile}" | grep -oP "[0-9]{7}")
+    out=${ROOT}/data-raw/ukb_mni/sub-"${sub}"_task-EMOTION_space-MNI152_contrast-5_cope.nii.gz 
+    local statsdir
+    statsdir=$(dirname "${infile}")
+    local featdir
+    featdir=$(dirname "${statsdir}")
+    local warp="${featdir}"/reg/example_func2standard_warp
+
+
+    if [[ -f $out || ! -f $infile ]]; then
+        return
+    fi    
+
+    echo "working on ${sub}"
+    echo "${infile}"
+    echo "${out}"
+
+    applywarp \
+        -r "${FSLDIR}"/data/standard/MNI152_T1_2mm \
+        -i "${infile}" \
+        -w "${warp}" \
+        -o "${out}"
+
+}
+export -f warp
+
+readarray -t copes < ${COPES_RAW}
+i=$(( SLURM_ARRAY_TASK_ID + n_max_array*batch ))
+warp "${copes[$i]}"

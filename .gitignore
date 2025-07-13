@@ -44,3 +44,5 @@ analyses/figures
 data-raw/hcp-niis-ptfce
 data-raw/palm
 bak
+data-raw/warp-log
+data-raw/logs
