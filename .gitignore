@@ -41,3 +41,13 @@ data-raw/hcp/restricted.csv
 
 ohbm2022
 analyses/figures
+data-raw/hcp-niis-ptfce
+data-raw/palm
+data-raw/out*
+data-raw/glm_manual
+data-raw/Fake*
+data-raw/cpm*
+data-raw/ukb_mni
+data-raw/bold
+data-raw/palm-ciftis# pixi environments
+.pixi

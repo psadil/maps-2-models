@@ -1,10 +1,8 @@
-
-
-roi_from_cifti <- function(file, name="Schaefer_400"){
+roi_from_cifti <- function(file, name = "Schaefer_400") {
   parc <- ciftiTools::load_parc(name)
   parc <- ciftiTools::parc_add_subcortex(parc)
   xii <- ciftiTools::read_xifti(file)
-  ciftiTools::apply_parc(xii, parc, FUN=mean, na.rm=TRUE) |>
+  ciftiTools::apply_parc(xii, parc, FUN = mean, na.rm = TRUE) |>
     tibble::as_tibble(rownames = "label") |>
     dplyr::rename(Z = V1) |>
     dplyr::filter(!label == "???") |>
@@ -12,7 +10,7 @@ roi_from_cifti <- function(file, name="Schaefer_400"){
 }
 
 
-tbl_from_cifti <- function(file){
+tbl_from_cifti <- function(file) {
   ciftiTools::read_xifti(file, flat = TRUE) |>
     t() |>
     dplyr::as_tibble() |>
@@ -20,7 +18,3 @@ tbl_from_cifti <- function(file){
     tidyr::pivot_longer(-t, names_prefix = "V") |>
     dplyr::mutate(name = as.integer(name))
 }
-
-
-
-

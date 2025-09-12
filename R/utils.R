@@ -15,7 +15,9 @@ phi <- function(x, y) {
   fp <- mean(!x & y)
   tn <- mean(!x & !y)
   fn <- mean(x & !y)
-  if (((tp & fp) == 0) | ((tp & fn) == 0) | ((fn & tn) == 0) | ((fp & tn) == 0)) {
+  if (
+    ((tp & fp) == 0) | ((tp & fn) == 0) | ((fn & tn) == 0) | ((fp & tn) == 0)
+  ) {
     return(0)
   }
   cor(x, y)
@@ -57,7 +59,7 @@ z_to_d <- function(z, n, paired = FALSE) {
 }
 
 z_to_g <- function(z, n, paired = FALSE) {
-  z_to_d(z=z, n=n, paired = paired) * correct_d(n)
+  z_to_d(z = z, n = n, paired = paired) * correct_d(n)
 }
 
 
@@ -70,6 +72,11 @@ mask_gray <- function(d, mask = MNITemplate::getMNISegPath(res = "2mm")) {
 mask <- function(d, mask = MNITemplate::getMNIPath("Brain_Mask", "2mm")) {
   m <- to_tbl0(RNifti::readNifti(mask)) |>
     dplyr::filter(value > 0)
+  dplyr::semi_join(d, m, by = c("x", "y", "z"))
+}
+
+mask_atlas <- function(d) {
+  m <- make_atlas_full(n_parcels = 400)
   dplyr::semi_join(d, m, by = c("x", "y", "z"))
 }
 
@@ -104,14 +111,14 @@ to_tbl <- function(file, measure = "value", volumes = NULL) {
 }
 
 
-xii_to_tbl <- function(xii){
+xii_to_tbl <- function(xii) {
   as.matrix(xii) |>
     dplyr::as_tibble() |>
-    dplyr::mutate(v = dplyr::row_number()) 
+    dplyr::mutate(v = dplyr::row_number())
 }
 
 
-tbl_from_cifti <- function(file){
+tbl_from_cifti <- function(file) {
   ciftiTools::read_xifti(file, flat = TRUE) |>
     t() |>
     dplyr::as_tibble() |>
@@ -121,4 +128,45 @@ tbl_from_cifti <- function(file){
 }
 
 
+read_cifti_labels <- function(
+  url = "https://raw.githubusercontent.com/ThomasYeoLab/CBIG/refs/heads/master/stable_projects/brain_parcellation/Schaefer2018_LocalGlobal/Parcellations/HCP/fslr32k/cifti/Schaefer2018_400Parcels_7Networks_order_info.txt"
+) {
+  lines <- readr::read_lines(url)
 
+  # Create two separate vectors for group names and data rows
+  group_names <- lines[seq(1, length(lines), by = 2)]
+  data_rows <- lines[seq(2, length(lines), by = 2)]
+
+  # Process the data rows to extract the numerical values
+  processed_data <- purrr::map(data_rows, function(row) {
+    # Extract numeric values
+    values <- stringr::str_extract_all(row, "\\d+") |>
+      unlist() |>
+      as.numeric()
+
+    # Ensure we have 5 values (index, R, G, B, A)
+    if (length(values) == 5) {
+      tibble::tibble(
+        index = values[1],
+        R = values[2],
+        G = values[3],
+        B = values[4],
+        A = values[5]
+      )
+    } else {
+      # Handle cases with missing values
+      tibble::tibble(
+        index = if (length(values) >= 1) values[1] else NA,
+        R = if (length(values) >= 2) values[2] else NA,
+        G = if (length(values) >= 3) values[3] else NA,
+        B = if (length(values) >= 4) values[4] else NA,
+        A = if (length(values) >= 5) values[5] else NA
+      )
+    }
+  }) |>
+    dplyr::bind_rows()
+
+  processed_data |>
+    dplyr::mutate(label = group_names) |>
+    dplyr::select(label, index)
+}

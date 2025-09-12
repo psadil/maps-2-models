@@ -1,16 +1,22 @@
 #!/bin/bash
 #SBATCH -J act_preds
-#SBATCH --array=0-1
-#SBATCH --output act-preds_%a.log
+#SBATCH --output logs/act-preds_%a.log
 #SBATCH -t 24:00:00
-#SBATCH --mem=1G
+#SBATCH --mem=4G
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
+#SBATCH --constraint="intel"
 
 source ~/.bashrc
 
 mamba activate act_preds2
 
-python entrypoint.py $PWD cpm-difumo.parquet hcp.parquet --measure "${SLURM_ARRAY_TASK_ID}" 
+mapfile -t array <<<"$(cat hcp-iters.tsv)"
+line="${array[${SLURM_ARRAY_TASK_ID}]}"
+task=$(echo "${line}" | cut -f 1)
+type=$(echo "${line}" | cut -f 2)
+measure=$(echo "${line}" | cut -f 3)
+confounds=$(echo "${line}" | cut -f 4)
 
+python entrypoint.py $PWD cpm-schaefer.parquet "${confounds}" "${measure}" "${type}" "${task}"

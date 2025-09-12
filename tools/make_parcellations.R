@@ -11,12 +11,14 @@ n_parcels <- c(200, 400, 600, 800, 1000)
 # Compress the parcellations
 parc_name <- glue::glue("data-raw/Parcellations/HCP/fslr32k/cifti/Schaefer2018_{n_parcels}Parcels_7Networks_order.dlabel.nii")
 parc <- lapply(parc_name, read_xifti)
-names(parc) <- gsub(".dlabel.nii", "", parc_name, fixed=TRUE) |>
+names(parc) <- gsub(".dlabel.nii", "", parc_name, fixed = TRUE) |>
   stringr::str_remove("data-raw/Parcellations/HCP/fslr32k/cifti/")
-parc <- lapply(parc, function(y){list(
-  map = as.matrix(y),
-  col = y$meta$cifti$labels$parcels[c("Red", "Green", "Blue")]
-)})
+parc <- lapply(parc, function(y) {
+  list(
+    map = as.matrix(y),
+    col = y$meta$cifti$labels$parcels[c("Red", "Green", "Blue")]
+  )
+})
 
 
-save(parc, file=dst, compress='xz')
+save(parc, file = dst, compress = "xz")

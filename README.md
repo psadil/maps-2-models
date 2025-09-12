@@ -14,8 +14,6 @@ The report uses data from the HCP YA S500 release. These should be stored in dat
 
 Part of the main analysis script relies on a parquet version of the S500 release that was compiled with [tools/hcptoparquet.py](tools/hcptoparquet.py). The location of that script's output should be stored in the path referenced by the environment variable `HCPPARQUET`, defined at the top of [_targets.R](_targets.R).
 
-It is expected that `fslr::fsldir()` resolves to a valid directory.
-
 The rest of the analysis scripts assume that the following folders are also in data-raw:
 
 - [data-raw/1000subjects_reference](https://github.com/ThomasYeoLab/CBIG/tree/80cf681d25ef8a0d259c5773e92f0d39537aaca1/stable_projects/brain_parcellation/Yeo2011_fcMRI_clustering/1000subjects_reference)
@@ -35,26 +33,114 @@ renv::restore()
 
 The python scripts relied on an environment that is described in [env.yml](tools/env.yml).
 
-### Data Preprocessing and Predictive Modeling
+### Neuroimaging tools
 
-The model predictions are mainly done in python. One script, [difumo-connectivity](tools/difumo-connectivity) prepares parquet files for analysis (as a SLURM array job with 3418 elements). This script will generate an arrow dataset (cpm-difumo2) which can be aggregated into a single parquet file with [gather-difumo.py](tools/gather-difumo.py), which generates `cpm-difumo.parquet`. That file contains the model predictors. The predicted values come from the unrestricted and restricted portions of the HCP YA dataset, and they are grouped by [bundle-hcp.py](tools/bundle-hcp.py) into a parquet file called `hcp.parquet`. Finally, the modeling is done by [act_preds](tools/act_preds), which uses the features from `cpm-difumo.parquet` to predict the outputs in `hcp.parquet` (as a SLURM array job with 63 elements). The outputs of these scripts should be placed in the data-raw folder:
-
-- data-raw/out-perm-cpm-preds-sametest
-- data-raw/out-perm-cpm-sametest
-- data-raw/out-perm-gold-cpm-preds-sametest
-- data-raw/out-perm-gold-cpm-sametest
+- FSL (6.0.6.5)
+- [`wb_command`](https://humanconnectome.org/software/get-connectome-workbench) (version 2.0.0)
+- [niimath](https://github.com/rordenlab/niimath)
 
 ### Main Analyses
 
-Analyses are structured with the [targets](https://github.com/ropensci/targets) package. To reproduce the analyses, run
+Analyses are structured with the [targets](https://github.com/ropensci/targets) package. Ideally, this would be as simple as running `targets::tar_make()`. However, it was necessary to generate some products outside of the targets pipeline.
+
+- Generate `palm` commands
 
 ```{r}
-Sys.setenv(TAR_PROJECT = "hcp_ptfce")
-targets::tar_make()
+targets::tar_make(c(tfce, tfce_ukb, tfce_pop, tfce_pop_ukb))
+targets::tar_load(c(tfce, tfce_ukb))
+tfce_ukb |> 
+    magrittr::use_series("cmd") |> 
+    readr::write_lines('tools/palm_cmds_ukb')
+tfce |> 
+    dplyr::filter(n_sub<=40) |> 
+    magrittr::use_series("cmd") |> 
+    readr::write_lines('tools/palm_cmds')
+
+# pop generated, but note that we won't run palm for pop datasets
+targets::tar_load(c(tfce_pop))
+tfce_pop |> 
+    dplyr::filter(stringr::str_detect(type, "VOL", TRUE)) |> 
+    magrittr::use_series("cmd") |> 
+    readr::write_lines('tools/tfce_pop_inputs')
+
+tfce_pop |> 
+    dplyr::filter(type == "VOL") |>
+    dplyr::mutate(cmd = stringr::str_remove(cmd, "palm2 -f .*VOL ")) |> 
+    magrittr::use_series("cmd") |> 
+    readr::write_lines('tools/randomise_manual')
 ```
 
-Note that these analyses are embarrassingly parallel, so if multiple cores are available then it may be beneficial to use [crew](https://books.ropensci.org/targets/crew.html). The [_targets.R](_targets.R) script has examples of doing so (commented out).
+- Run `palm`
 
-### Figures
+```{bash}
+sbatch tools/batchpalm-ukb
+sbatch tools/batchpalm
+sbatch tools/batchpalm-vol
+```
+
+- Run HCPYA pop glm by hand for volumetric
+
+```{bash}
+# generates outputs in data-raw/glm_manual
+tools/vol_glm_by_hand
+```
+
+- Run HCPYA pop glm by hand for surface/msmall (only aggregates)
+
+```{shell}
+sbatch tools/batchcreateplameinputs
+```
+
+- Prepare UKB gray parquets (for topographic)
+
+```{r}
+targets::tar_make(ukb_gray)
+```
+
+- Generate UKB Pop GLM
+
+```{bash}
+Rscript tools/run_ukb_pop_glm.R
+```
+
+- Generate UKB Pop effect size map
+
+```{bash}
+sbatch tools/ukb_group
+```
+
+- Generate Schaefer modeling results
+
+```{shell}
+# prepares parquet files for analysis (as a SLURM array job with 3418 elements)
+tools/schaefer-connectivity
+
+# UKB, 40220 participants
+tools/schaefer-connectivity-ukb
+
+# now, dataset cpm-schaefer2 should be available
+
+# aggregate into parquet file, cpm-difumo.parquet
+tools/gather-schaefer.py
+
+# bundle hcp/ukb outputs into data-raw/hcp.parquet and data-raw/cognitive.parquet
+tools/bundle-hcp-ukb.py
+
+# do modeling
+tools/act_preds
+tools/act_preds_ukb
+
+# ensure outputs in 
+# - data-raw/out-perm-cpm-preds-sametest
+# - data-raw/out-perm-cpm-sametest
+# - data-raw/out-perm-gold-cpm-preds-sametest
+# - data-raw/out-perm-gold-cpm-sametest
+```
+
+Now, the necessary inputs should be available for the pipeline to complete
+
+```{r}
+targets::tar_make()
+```
 
 Figures (tex files) are generated by the targets workflow and deposited into [analyses/figures](analyses/figures).

@@ -5,5 +5,5 @@ fd \
   -t d \
   -E "*level2vol.feat" \
   -E "*level2.feat" \
-  s4_level2_MSMAll.feat /dcs07/smart/data/human-connectome-project-openaccess/HCP 
+  s4_level2_MSMAll.feat /dcs07/smart/data/human-connectome-project-openaccess/HCP1200 \ 
   | sort > data-raw/msmall_feat

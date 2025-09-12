@@ -1,4 +1,3 @@
-
 library(dplyr)
 library(readr)
 library(tidyr)
@@ -9,7 +8,7 @@ avail <- targets::tar_read(test) |>
     Subject = stringr::str_extract(avail, "[[:digit:]]{6}") |> as.integer()
   ) |>
   distinct(Subject)
-  
+
 
 twins <- readr::read_csv("data-raw/hcp/restricted.csv") |>
   semi_join(avail) |>
@@ -36,4 +35,3 @@ twins_s1200 |>
     )
   ) |>
   count(ZygositySR, ZygosityGT)
-

@@ -93,10 +93,23 @@ dopalm() {
     wb_command -surface-average "${L_midthick}" ${L_MERGELIST}
     wb_command -surface-average "${R_midthick}" ${R_MERGELIST}
 
+    if [[ ! -f ${flag}_tfce_tstat_c1.nii ]]; then
     palm -i "${data_sub}" -o "${flag}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1 -nouncorrected -n 10
-    palm -i "${data_L}" -o "${flag}"_L -tfce2D -s "${L_midthick}" "${L_area}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1 -nouncorrected -n 10
-    palm -i "${data_R}" -o "${flag}"_R -tfce2D -s "${R_midthick}" "${R_area}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1 -nouncorrected -n 10
+    else
+        echo "found ${flag} subcortex, skipping"
+    fi
 
+    if [[ ! -f ${flag}_L_tfce_tstat_c1.gii ]]; then
+        palm -i "${data_L}" -o "${flag}"_L -tfce2D -s "${L_midthick}" "${L_area}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1 -nouncorrected -n 10
+    else
+        echo "found ${flag} L, skipping"
+    fi
+
+    if [[ ! -f ${flag}_R_tfce_tstat_c1.gii ]]; then
+        palm -i "${data_R}" -o "${flag}"_R -tfce2D -s "${R_midthick}" "${R_area}" -T -logp -ise -saveglm -savedof -savemetrics -saveparametric -savemax -seed 1 -nouncorrected -n 10
+    else
+        echo "found ${flag} R, skipping"
+    fi
 }
 export -f dopalm
 

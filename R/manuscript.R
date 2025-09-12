@@ -1,74 +1,137 @@
-make_roi <- function(
-    data_roi_study_to_gold,
-    data_roi_study_to_study,
-    data_roi_sub_to_sub,
-    file) {
+make_roi <- function(data_roi_study_to_gold, data_roi_study_to_study) {
   a <- data_roi_study_to_gold |>
     dplyr::filter(n_parcels == 400) |>
-    ggplot2::ggplot(
-      ggplot2::aes(x = n_sub, y = prop, group = label, color = abs(d))
-    ) +
-    ggplot2::geom_point(alpha = 0.2) +
-    ggplot2::geom_line(alpha = 0.2) +
-    ggplot2::facet_grid(Task~type) +
-    scale_y_continuous(
-      "Proportion Simulations w/\nActivity in Most Active ROI",
-      limits = c(0, 1),
-      labels = c(0, 0.5, 1),
-      breaks = c(0, 0.5, 1)
-    ) +
-    scale_x_continuous(
-      "N Sub",
-      breaks = c(40, 80),
-      labels = c(40, 80)
-    ) +
-    scale_color_viridis_c(
-      "Abs. Effect Size",
-      option = "turbo",
-      limits = c(0, NA),
-      n.breaks = 3
-    )
-  
-  b <- data_roi_study_to_study |>
-    dplyr::filter(
-      forcats::fct_match(n_parcels, "N Parcels: 400")
-    ) |>
-    ggplot(aes(y = n_sub, x = phi, group = n_sub)) +
-    facet_wrap(~Task) +
-    ggdist::stat_dots(quantiles = 50) +
-    ylab("N Sub") +
-    scale_x_continuous(
-      "Phi Coefficient\n(Study-Study)",
-      limits = c(-0.25, 1),
-      breaks = c(-0.25, 0.5),
-      labels = c(-0.25, 0.5)
-    )
-  
-  cc <- data_roi_sub_to_sub |>
     dplyr::mutate(
-      Task = factor(Task),
-      Task = forcats::fct_rev(Task)
+      Task = stringr::str_to_lower(Task),
+      type = stringr::str_to_lower(type)
+    ) |>
+    ggplot2::ggplot(
+      ggplot2::aes(x = n_sub, y = avg, color = type)
+    ) +
+    ggplot2::geom_point() +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(aes(ymin = lower, ymax = upper)) +
+    ggplot2::facet_wrap(~Task, nrow = 2, scales = "free_x") +
+    ggplot2::scale_y_continuous(
+      "Rank Correlation with\nGold Standard\n(Most Active ROI)",
+      breaks = c(0, 0.5, 1),
+      labels = c(0, 0.5, 1)
+    ) +
+    ggplot2::scale_x_continuous(
+      "N Sub",
+      transform = "log10"
+    ) +
+    ggplot2::scale_color_viridis_d(name = NULL, option = "turbo") +
+    ggplot2::guides(colour = guide_legend(position = "inside"))
+
+  b <- data_roi_study_to_study |>
+    dplyr::mutate(
+      Task = stringr::str_to_lower(Task),
+      type = stringr::str_to_lower(type)
     ) |>
     dplyr::filter(n_parcels == 400) |>
-    ggplot(aes(y = Task, x = rho)) +
-    ggdist::stat_dotsinterval(
-      quantiles = 100
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = .estimate, color = type)) +
+    ggplot2::facet_wrap(~Task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_point() +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(ggplot2::aes(ymin = .lower, ymax = .upper)) +
+    ggplot2::scale_y_continuous(
+      "ICC(C,1) Across\nBootstrap Samples",
+      breaks = c(0, 0.5, 1),
+      labels = c(0, 0.5, 1)
     ) +
-    scale_x_continuous(
-      "Product-Moment Correlation\n(Sub-Sub)",
-      limits = c(-0.75, 1),
-      breaks = c(-0.75, 0, 0.75),
-      labels = c(-0.75, 0, 0.75)
+    ggplot2::scale_x_continuous(
+      "N Sub",
+      transform = "log10"
+    ) +
+    ggplot2::scale_color_viridis_d(name = NULL, option = "turbo") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
     )
-  
-  a + b + cc +
-    patchwork::plot_layout(ncol = 1, heights = c(1, 1.5, 1)) +
+
+  a +
+    b +
+    patchwork::plot_layout(ncol = 1) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    ggplot2::theme_gray(base_size = 8) +
-    ggplot2::theme(
-      legend.position = "bottom",
-      legend.key.size = unit(8, "pt")
+    ggplot2::theme_gray(base_size = 10) +
+      ggplot2::theme(
+        legend.margin = margin(0, 0, 0, 0), # turned off for alignment
+        legend.justification.top = "left",
+        legend.justification.left = "bottom",
+        legend.justification.bottom = "right",
+        legend.justification.inside = c(1, 0),
+        legend.location = "plot"
+      )
+}
+
+make_roi2 <- function(data_roi_study_to_gold, data_roi_study_to_study) {
+  a <- data_roi_study_to_gold |>
+    dplyr::filter(n_parcels == 400) |>
+    dplyr::mutate(
+      d = abs(d),
+      Task = stringr::str_to_lower(Task),
+      type = stringr::str_to_lower(type)
+    ) |>
+    ggplot2::ggplot(
+      ggplot2::aes(x = n_sub, y = avg, color = d, group = label)
+    ) +
+    ggplot2::geom_point() +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(ggplot2::aes(ymin = lower, ymax = upper)) +
+    ggplot2::facet_wrap(~ Task + type, scales = "free_x", nrow = 3) +
+    ggplot2::scale_y_continuous(
+      "Proportion Bootstrap Samples Active (Most Active ROI)",
+      breaks = c(0, 0.5, 1),
+      labels = c(0, 0.5, 1)
+    ) +
+    ggplot2::scale_x_continuous(
+      "N Sub",
+      transform = "log10"
+    ) +
+    ggplot2::scale_color_viridis_c(name = "Cohen's d", option = "turbo") +
+    ggplot2::guides(
+      colour = ggplot2::guide_colorbar(position = "inside"),
     )
+
+  b <- data_roi_study_to_study |>
+    dplyr::mutate(
+      Task = stringr::str_to_lower(Task),
+      type = stringr::str_to_lower(type)
+    ) |>
+    dplyr::filter(n_parcels == 400) |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = .estimate, color = type)) +
+    ggplot2::facet_wrap(~Task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_point() +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(ggplot2::aes(ymin = .lower, ymax = .upper)) +
+    ggplot2::scale_y_continuous(
+      "ICC(1) Across Bootstrap Samples",
+      limits = c(0, 1),
+      breaks = c(0, 0.5, 1),
+      labels = c(0, 0.5, 1)
+    ) +
+    ggplot2::scale_x_continuous(
+      "N Sub",
+      transform = "log10"
+    ) +
+    ggplot2::scale_color_viridis_d(name = NULL, option = "turbo") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+    )
+
+  a +
+    b +
+    patchwork::plot_layout(ncol = 1, heights = c(2, 1)) +
+    patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
+    ggplot2::theme_gray(base_size = 10) +
+      ggplot2::theme(
+        legend.margin = margin(0, 0, 0, 0), # turned off for alignment
+        legend.justification.top = "left",
+        legend.justification.left = "bottom",
+        legend.justification.bottom = "right",
+        legend.justification.inside = c(1, 0),
+        legend.location = "plot"
+      )
 }
 
 get_max <- function(q) {
@@ -78,13 +141,14 @@ get_max <- function(q) {
 
 
 make_prop_active_most_active_roi_ptfce_null <- function(
-    at_list,
-    active_null,
-    iter,
-    gold_tested,
-    active_threshold = 0.02) {
+  at_list,
+  active_null,
+  iter,
+  gold_tested,
+  active_threshold = 0.02
+) {
   n_sims <- dplyr::n_distinct(iter)
-  
+
   # regions with at least one voxel active
   out_null <- active_null |>
     dplyr::collect() |>
@@ -94,8 +158,12 @@ make_prop_active_most_active_roi_ptfce_null <- function(
       relationship = "many-to-many"
     ) |>
     dplyr::distinct(
-      n_sub, iter, label, `Label Name`,
-      `Full component name`, n_parcels
+      n_sub,
+      iter,
+      label,
+      `Label Name`,
+      `Full component name`,
+      n_parcels
     ) |>
     dplyr::count(
       n_sub,
@@ -105,7 +173,7 @@ make_prop_active_most_active_roi_ptfce_null <- function(
       n_parcels
     ) |>
     dplyr::mutate(prop = n / n_sims)
-  
+
   gold_null <- gold_tested |>
     dplyr::filter(Task == "WM") |>
     dplyr::mutate(
@@ -124,7 +192,7 @@ make_prop_active_most_active_roi_ptfce_null <- function(
         as.numeric() |>
         factor()
     )
-  
+
   out_null |>
     dplyr::semi_join(dplyr::distinct(gold_null, l, label, n_parcels)) |>
     dplyr::right_join(
@@ -143,9 +211,9 @@ make_prop_active_most_active_roi_ptfce_null <- function(
       propr = dplyr::if_else(is.na(prop), 0, prop)
     ) |>
     dplyr::mutate(prop = dplyr::if_else(is.na(prop), 0, prop)) |>
-    ggplot(aes(x = n_sub, y = prop, group = l)) +
-    geom_ribbon(
-      aes(
+    ggplot2::ggplot(aes(x = n_sub, y = prop, group = l)) +
+    ggplot2::geom_ribbon(
+      ggplot2::aes(
         ymin = qbeta(0.05 / 2, 5, 100 - 5 + 1),
         ymax = qbeta(1 - 0.05 / 2, 5, 100 - 5)
       ),
@@ -154,116 +222,191 @@ make_prop_active_most_active_roi_ptfce_null <- function(
       linetype = "dashed",
       color = "black"
     ) +
-    geom_point(show.legend = FALSE, alpha = 0.2) +
-    geom_line(show.legend = FALSE, alpha = 0.2) +
-    facet_wrap(~n_parcels) +
-    scale_y_continuous(
+    ggplot2::geom_point(show.legend = FALSE, alpha = 0.2) +
+    ggplot2::geom_line(show.legend = FALSE, alpha = 0.2) +
+    ggplot2::facet_wrap(~n_parcels) +
+    ggplot2::scale_y_continuous(
       "Proportion Simulations w/\nActivity in Most Active ROI",
       limits = c(0, 0.12)
     ) +
-    xlab("N Sub") +
-    theme_gray(base_size = 12)
+    ggplot2::xlab("N Sub") +
+    ggplot2::theme_gray(base_size = 12)
 }
 
 make_prop_active_most_active_roi_ptfce <- function(data_roi_study_to_gold) {
   data_roi_study_to_gold |>
-    ggplot(aes(x = n_sub, y = prop, group = label, color = abs(d))) +
-    geom_point(alpha = 0.2) +
-    geom_line(alpha = 0.2) +
-    facet_grid(n_parcels ~ Task) +
-    scale_y_continuous(
+    ggplot2::ggplot(ggplot2::aes(
+      x = n_sub,
+      y = prop,
+      group = label,
+      color = abs(d)
+    )) +
+    ggplot2::geom_point(alpha = 0.2) +
+    ggplot2::geom_line(alpha = 0.2) +
+    ggplot2::facet_grid(n_parcels ~ Task) +
+    ggplot2::scale_y_continuous(
       "Proportion Simulations w/\nActivity in Most Active ROI",
       limits = c(0, 1),
       labels = c(0, 0.5, 1),
       breaks = c(0, 0.5, 1)
     ) +
-    scale_x_continuous(
+    ggplot2::scale_x_continuous(
       "N Sub",
       breaks = c(40, 80),
       labels = c(40, 80)
     ) +
-    scale_color_viridis_c(
+    ggplot2::scale_color_viridis_c(
       "Abs. Effect Size",
       option = "turbo",
       limits = c(0, NA),
       n.breaks = 3
     ) +
-    theme(legend.position = "bottom")
+    ggplot2::theme(legend.position = "bottom")
 }
 
-make_peaks <- function(
-    data_peak_study_to_gold,
-    data_peak_study_to_study,
-    data_peak_sub_to_sub) {
-  a <- data_peak_study_to_gold |>
-    ggplot(aes(x = within, group = peak, y = n_simulations, color = Value)) +
-    geom_point(alpha = 0.2) +
-    geom_line(alpha = 0.2) +
-    facet_grid(n_sub ~ Task) +
-    scale_y_continuous(
-      "Proportion Simulations w/\nPeak in Radius",
+.make_1_peaks <- function(data_peak_study_to_gold, type) {
+  data_peak_study_to_gold |>
+    dplyr::filter(type == .env$type) |>
+    dplyr::mutate(Task = stringr::str_to_lower(Task)) |>
+    ggplot2::ggplot(
+      ggplot2::aes(
+        x = within,
+        group = label,
+        y = n_simulations,
+        color = d,
+      )
+    ) +
+    ggplot2::geom_point(alpha = 0.2) +
+    ggplot2::geom_line(alpha = 0.2) +
+    ggplot2::facet_grid(Task ~ n_sub) +
+    ggplot2::scale_y_continuous(
+      "Proportion Simulations w/ Peak in Radius",
       limits = c(0, 1),
       breaks = c(0, 0.5, 1),
       labels = c(0, 0.5, 1)
     ) +
-    scale_x_continuous(
+    ggplot2::scale_x_continuous(
       "Radius (mm)",
       limits = c(0, 20),
       breaks = c(0, 10, 20),
       labels = c(0, 10, 20)
     ) +
-    scale_color_viridis_c(
-      "Peak Height",
+    ggplot2::scale_color_viridis_c(
+      "Cohen's d",
       option = "turbo",
-      limits = c(0, NA),
-      n.breaks = 3
-    )
-  
-  b <- data_peak_study_to_study |>
-    dplyr::filter(corrp_thresh == 0.95) |>
-    ggplot(aes(y = n_sub, x = d)) +
-    facet_wrap(~Task) +
-    ggdist::stat_dots(quantiles = 100) +
-    ylab("N Sub") +
-    scale_x_continuous(
-      "Distance Between\nAssociated Peaks\n(Study-Study)"
-    )
-  
-  cc <- data_peak_sub_to_sub |>
-    dplyr::mutate(
-      Task = factor(Task),
-      Task = forcats::fct_rev(Task)
-    ) |>
-    ggplot(aes(y = Task, x = d)) +
-    ggdist::stat_dots(quantiles = 100) +
-    ylab(NULL) +
-    scale_x_continuous(
-      "Distance Between\nAssociated Peaks\n(Sub-Sub)"
-    )
-  
-  a + b + cc +
-    patchwork::plot_layout(nrow = 1, widths = c(4, 2, 1)) +
-    patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    theme_gray(base_size = 6) +
-    theme(
-      legend.position = "bottom",
-      legend.key.size = unit(6, "pt")
-    )
+      limits = c(0, 4)
+    ) +
+    ggplot2::ggtitle(type)
 }
 
+make_peaks_validity <- function(
+  data_peak_study_to_gold,
+  threshold = "unthresholded"
+) {
+  if (threshold == "unthresholded") {
+    thresholded <- dplyr::filter(data_peak_study_to_gold, threshold == 0)
+  } else {
+    thresholded <- dplyr::filter(data_peak_study_to_gold, threshold > 0)
+  }
+
+  vol <- .make_1_peaks(thresholded, "VOL")
+  ukb <- .make_1_peaks(thresholded, "UKB")
+  msm <- .make_1_peaks(thresholded, "MSMALL")
+  surf <- .make_1_peaks(thresholded, "SURFACE")
+
+  vol +
+    ukb +
+    msm +
+    surf +
+    patchwork::plot_layout(guides = "collect") +
+    patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
+    ggplot2::theme_gray(base_size = 8)
+}
+
+.make_1_peak_reliability <- function(.d, type, nrow) {
+  if (type %in% c("VOL", "UKB")) {
+    upper <- 100
+    labels <- breaks <- c(0, 50)
+  } else {
+    upper <- 300
+    labels <- breaks <- c(0, 50, 100, 150, 200, 250, 300)
+    labels <- c(0, 50, "", "", "", "", "")
+  }
+  .d |>
+    dplyr::filter(type == .env$type) |>
+    dplyr::mutate(
+      Task = stringr::str_to_lower(Task)
+    ) |>
+    ggplot2::ggplot(ggplot2::aes(y = n_sub, x = d)) +
+    ggplot2::facet_wrap(~rank, nrow = nrow, labeller = ggplot2::label_both) +
+    ggdist::stat_dots(
+      ggplot2::aes(color = Task, fill = Task),
+      quantiles = 100,
+      position = "dodge",
+      show.legend = TRUE
+    ) +
+    ggplot2::scale_fill_viridis_d(
+      option = "turbo",
+      drop = FALSE,
+    ) +
+    ggplot2::scale_color_viridis_d(
+      option = "turbo",
+      drop = FALSE,
+    ) +
+    ggplot2::ylab("N Sub") +
+    ggplot2::scale_x_continuous(
+      "Distance Between\nAssociated Peaks\n(Study-Study)",
+      limits = c(0, upper),
+      breaks = breaks,
+      labels = labels,
+      transform = "pseudo_log"
+    ) +
+    ggplot2::ggtitle(type)
+}
+
+make_peaks_reliability <- function(
+  data_peak_study_to_study,
+  threshold = "unthresholded",
+  nrow_subfig = 2,
+  base_size = 8
+) {
+  data_peak_study_to_study <- data_peak_study_to_study |>
+    dplyr::mutate(Task = factor(Task))
+  if (threshold == "unthresholded") {
+    thresholded <- dplyr::filter(data_peak_study_to_study, threshold == 0)
+  } else {
+    thresholded <- dplyr::filter(data_peak_study_to_study, threshold > 0)
+  }
+
+  .make_1_peak_reliability(thresholded, "VOL", nrow = nrow_subfig) +
+    .make_1_peak_reliability(thresholded, "UKB", nrow = nrow_subfig) +
+    .make_1_peak_reliability(thresholded, "MSMALL", nrow = nrow_subfig) +
+    .make_1_peak_reliability(thresholded, "SURFACE", nrow = nrow_subfig) +
+    patchwork::plot_layout(nrow = 2, guides = "collect") +
+    patchwork::plot_annotation(
+      tag_levels = "a",
+      tag_suffix = ")"
+    ) &
+    ggplot2::theme_gray(base_size = base_size) +
+      ggplot2::theme(legend.position = "bottom")
+}
+
+
 make_peak_bysize <- function(space, data_topo_gold) {
-  
   topo_gold <- data_topo_gold |>
     dplyr::mutate(d = cope / sigma * correct_d(n_sub)) |>
-    dplyr::select(Task, x, y, z, hedges_g=d)
-  
+    dplyr::select(Task, x, y, z, hedges_g = d)
+
   space |>
     dplyr::filter(!is.na(d)) |>
     dplyr::mutate(
-      `Network Name` =
-        dplyr::if_else(is.na(`Network Name`) & !is.na(label), "subcortical", `Network Name`)
+      `Network Name` = dplyr::if_else(
+        is.na(`Network Name`) & !is.na(label),
+        "subcortical",
+        `Network Name`
+      )
     ) |>
-    dplyr::filter(!is.na(`Network Name`)) |>    
+    dplyr::filter(!is.na(`Network Name`)) |>
     dplyr::summarise(
       d = mean(d, na.rm = TRUE),
       .by = c(n_sub, corrp_thresh, Task, `Network Name`, x, y, z)
@@ -282,31 +425,34 @@ make_peak_bysize <- function(space, data_topo_gold) {
         )
       )
     ) |>
-    ggplot(aes(y = d, x = hedges_g)) +
+    ggplot2::ggplot(ggplot2::aes(y = d, x = hedges_g)) +
     scattermore::geom_scattermore(
-      pointsize = 5, 
-      alpha = 0.25) +
-    facet_grid(`N Sub` ~ Task) +
-    scale_x_continuous(
+      pointsize = 5,
+      alpha = 0.25
+    ) +
+    ggplot2::facet_grid(`N Sub` ~ Task) +
+    ggplot2::scale_x_continuous(
       "Gold Standard Peak Cohen's d",
       breaks = c(0, 1),
       labels = c(0, 1)
     ) +
-    scale_y_log10("avg dist(Gold Standard Peak, Study Peak) (mm)") +
-    theme_gray(base_size = 8)
+    ggplot2::scale_y_log10("avg dist(Gold Standard Peak, Study Peak) (mm)") +
+    ggplot2::theme_gray(base_size = 8)
 }
 
 make_peak_bynetwork <- function(space, data_topo_gold) {
-  
   topo_gold <- data_topo_gold |>
     dplyr::mutate(d = cope / sigma * correct_d(n_sub)) |>
-    dplyr::select(Task, x, y, z, hedges_g=d)
-  
+    dplyr::select(Task, x, y, z, hedges_g = d)
+
   space |>
     dplyr::filter(!is.na(d)) |>
     dplyr::mutate(
-      `Network Name` =
-        dplyr::if_else(is.na(`Network Name`) & !is.na(label), "subcortical", `Network Name`)
+      `Network Name` = dplyr::if_else(
+        is.na(`Network Name`) & !is.na(label),
+        "subcortical",
+        `Network Name`
+      )
     ) |>
     dplyr::filter(!is.na(`Network Name`)) |>
     dplyr::left_join(topo_gold, by = dplyr::join_by(Task, x, y, z)) |>
@@ -327,123 +473,129 @@ make_peak_bynetwork <- function(space, data_topo_gold) {
           "N Sub: 100"
         )
       )
-    )  |>
-    ggplot(aes(y = `Network Name`, x = d, color = hedges_g)) +
-    geom_boxplot(outlier.shape = NA) +
+    ) |>
+    ggplot2::ggplot(ggplot2::aes(y = `Network Name`, x = d, color = hedges_g)) +
+    ggplot2::geom_boxplot(outlier.shape = NA) +
     scattermore::geom_scattermore(
       pointsize = 5,
       position = position_jitter(width = 0),
       alpha = 0.5
     ) +
-    facet_grid(`N Sub` ~ Task) +
-    scale_color_viridis_c(
+    ggplot2::facet_grid(`N Sub` ~ Task) +
+    ggplot2::scale_color_viridis_c(
       option = "turbo",
-      guide = guide_colorbar("Cohen's d"),
+      guide = ggplot2::guide_colorbar("Cohen's d"),
       limits = c(0, 1.25)
     ) +
-    ylab("Network") +
-    scale_x_continuous("avg dist(Gold Standard Peak, Study Peak) (mm)") +
-    theme_gray(base_size = 8)
+    ggplot2::ylab("Network") +
+    ggplot2::scale_x_continuous(
+      "avg dist(Gold Standard Peak, Study Peak) (mm)"
+    ) +
+    ggplot2::theme_gray(base_size = 8)
 }
 
-make_topo <- function(
-    data_topo_gold,
-    data_topo_gold_to_study,
-    data_topo_study_to_study,
-    data_topo_sub_to_sub) {
-  a <- data_topo_gold |>
-    mask_gray() |>
-    ggplot() +
-    facet_wrap(~Task) +
-    scattermore::geom_scattermore(aes(x = cope, y = sigma), alpha = 0.1, pointsize = 1) +
-    geom_function(fun = function(x) sqrt(20) * x / qt(0.001, 19), xlim = c(-200, 0)) +
-    geom_function(fun = function(x) sqrt(100) * x / qt(0.001, 99), xlim = c(-200, 0), color = "gray50") +
-    geom_function(fun = function(x) sqrt(100) * x / qt(0.999, 99), xlim = c(0, 200), color = "gray50") +
-    geom_function(fun = function(x) sqrt(20) * x / qt(0.999, 19), xlim = c(0, 200)) +
-    scale_y_continuous(
-      limits = c(0, 150)
+make_topo <- function(data_topo_gold_to_study, data_topo_study_to_study) {
+  a <- data_topo_gold_to_study |>
+    dplyr::mutate(
+      `N Sub` = factor(n_sub),
+      Task = stringr::str_to_lower(Task),
+      type = stringr::str_to_lower(type)
+    ) |>
+    ggplot2::ggplot(ggplot2::aes(x = rho, y = `N Sub`, color = type)) +
+    ggplot2::facet_wrap(~Task, scales = "free_y", nrow = 2) +
+    ggplot2::geom_boxplot(outliers = FALSE) +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::xlab("Rank Correlation (Gold to Study)") +
+    ggplot2::guides(colour = ggplot2::guide_legend(position = "inside"))
+
+  b <- data_topo_study_to_study |>
+    dplyr::filter(method == "consistency") |>
+    dplyr::mutate(
+      Task = stringr::str_to_lower(Task),
+      type = stringr::str_to_lower(type)
+    ) |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = estimate, color = type)) +
+    ggplot2::facet_wrap(~Task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(ggplot2::aes(ymin = lower, ymax = upper)) +
+    ggplot2::scale_x_continuous("N Sub", transform = "log10") +
+    ggplot2::scale_y_continuous(
+      "ICC(C,1) Across Bootstrap Samples",
+      limits = c(0, 1)
     ) +
-    scale_x_continuous(
-      limits = c(-200, 200),
-      labels = c(-150, 0, 150),
-      breaks = c(-150, 0, 150)
-    ) +
-    xlab(expression(beta ~ mean)) +
-    ylab(expression(beta ~ SD))
-  
-  b <- data_topo_gold_to_study |>
-    dplyr::mutate(`N Sub` = factor(n_sub)) |>
-    ggplot(aes(x = rho, y = `N Sub`)) +
-    facet_wrap(~Task) +
-    geom_boxplot(outlier.shape = NA, size = .1) +
-    geom_point(
-      position = position_jitter(width = 0),
-      shape = 20,
-      size = 0.1,
-      alpha = 0.1
-    ) +
-    xlab("Rank Correlation\n(Gold to Study)")
-  
-  cc <- data_topo_study_to_study |>
-    ggplot(aes(x = rr, y = `N Sub`, color = Task)) +
-    geom_line(aes(group = Task)) +
-    geom_errorbarh(aes(xmin = lower, xmax = upper)) +
-    xlab("Pairwise Rank Correlation\n(Study to Study)") +
-    theme(
-      legend.position = "bottom"
-    )
-  
-  d <- data_topo_sub_to_sub |>
-    dplyr::filter(!is.na(rho), stringr::str_detect(task, "EMOTION", TRUE)) |>
-    ggplot(aes(x = rho, y = task)) +
-    ggdist::stat_dots(
-      quantiles = 100
-    ) +
-    ylab("Task") +
-    xlab("Pairwise Product-Moment Correlation\n(Sub to Sub)")
-  
-  a + b + cc + d +
-    patchwork::plot_layout(ncol = 1) +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::guides(colour = ggplot2::guide_legend(position = "inside"))
+
+  a +
+    b +
+    patchwork::plot_layout(nrow = 2) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    theme_gray(base_size = 8) +
-    theme(
-      legend.position = "bottom",
-      legend.key.size = unit(8, "pt")
-    )
+    ggplot2::theme_gray(base_size = 8) +
+      ggplot2::theme(
+        legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
+        legend.justification.top = "left",
+        legend.justification.left = "bottom",
+        legend.justification.bottom = "right",
+        legend.justification.inside = c(1, 0),
+        legend.location = "plot"
+      )
 }
 
-make_prop_effect_size <- function(data_topo_gold) {
-  data_topo_gold |>
-    mask_gray() |>
+make_prop_effect_size <- function(glm_pop2) {
+  glm_pop2 |>
+    dplyr::mutate(
+      data = purrr::map(
+        glm,
+        ~ duckplyr::read_parquet_duckdb(.x) |>
+          dplyr::collect()
+      )
+    ) |>
+    dplyr::select(-glm, -n_sub) |>
+    tidyr::unnest(data) |>
+    dplyr::select(-n_sub) |>
+    dplyr::mutate(
+      d = cut(abs(pe / sigma), breaks = c(0, 0.2, 0.5, 0.8, Inf))
+    ) |>
     dplyr::filter(!is.na(d)) |>
-    dplyr::count(Task, d, name = "N") |>
-    dplyr::group_by(Task) |>
-    dplyr::mutate(Proportion = N / sum(N)) |>
-    ggplot(aes(x = Task, fill = d, y = Proportion)) +
-    geom_col(position = "dodge") +
-    guides(fill = guide_legend("Cohen's d")) +
-    xlab(NULL) +
-    theme_gray(base_size = 14) +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+    dplyr::count(Task, d, type, name = "N") |>
+    dplyr::group_by(Task, type) |>
+    dplyr::mutate(
+      Proportion = N / sum(N),
+      Task = stringr::str_to_lower(Task)
+    ) |>
+    ggplot2::ggplot(ggplot2::aes(x = Task, fill = d, y = Proportion)) +
+    ggplot2::facet_wrap(~type, scales = "free_x") +
+    ggplot2::geom_col(position = "dodge") +
+    ggplot2::guides(fill = ggplot2::guide_legend("Cohen's d")) +
+    ggplot2::xlab(NULL) +
+    ggplot2::theme_gray(base_size = 12) +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5))
 }
 
 make_topo_bynetwork <- function(pop_cor_region, data_topo_gold, at) {
-  
   roi_gold <- data_topo_gold |>
     dplyr::left_join(at, by = dplyr::join_by(x, y, z)) |>
     dplyr::filter(!is.na(label)) |>
     dplyr::mutate(
-      Network =
-        dplyr::if_else(is.na(`Network Name`) & !is.na(label), "subcortical", `Network Name`)) |>
+      Network = dplyr::if_else(
+        is.na(`Network Name`) & !is.na(label),
+        "subcortical",
+        `Network Name`
+      )
+    ) |>
     dplyr::summarise(
       hedges_g = mean(cope / sigma * correct_d(n_sub)),
-      .by = c(Task, Network))
-  
+      .by = c(Task, Network)
+    )
+
   pop_cor_region |>
     dplyr::mutate(
       f = atanh(rho),
-      Network =
-        dplyr::if_else(is.na(`Network Name`) & !is.na(label), "subcortical", `Network Name`)
+      Network = dplyr::if_else(
+        is.na(`Network Name`) & !is.na(label),
+        "subcortical",
+        `Network Name`
+      )
     ) |>
     dplyr::filter(!is.na(rho) & is.finite(f)) |>
     dplyr::group_by(Task, n_sub, ContrastName, method, Network, iter) |>
@@ -457,105 +609,728 @@ make_topo_bynetwork <- function(pop_cor_region, data_topo_gold, at) {
       `N Sub` = factor(n_sub)
     ) |>
     dplyr::left_join(roi_gold, by = dplyr::join_by(Task, Network)) |>
-    ggplot(aes(x = rr, y = Network, color = hedges_g)) +
-    facet_grid(`N Sub`~Task) +
-    geom_boxplot(outlier.alpha = 0.25) +
-    scale_color_viridis_c(
+    ggplot2::ggplot(ggplot2::aes(x = rr, y = Network, color = hedges_g)) +
+    ggplot2::facet_grid(`N Sub` ~ Task) +
+    ggplot2::geom_boxplot(outlier.alpha = 0.25) +
+    ggplot2::scale_color_viridis_c(
       option = "turbo",
-      guide = guide_colorbar("Cohen's d")
+      guide = ggplot2::guide_colorbar("Cohen's d")
     ) +
-    scale_x_continuous(
+    ggplot2::scale_x_continuous(
       "Rank Correlation with Reference",
       labels = c(0, 0.5, 1),
-      breaks = c(0, 0.5, 1)) +
-    theme_gray(base_size = 8) +
-    theme(legend.position = "bottom")
+      breaks = c(0, 0.5, 1)
+    ) +
+    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::theme(legend.position = "bottom")
 }
 
 make_model <- function(
-    data_model_gold_gold_to_study,
-    data_model_study_to_study,
-    data_model_sub_to_sub) {
-  a <- data_model_gold_gold_to_study |>
-    dplyr::filter(confounds == "True") |>
+  data_model_gold_gold_to_study,
+  data_model_study_to_study
+) {
+  prep <- data_model_gold_gold_to_study |>
+    dplyr::filter(model == "RIDGE_CV") |>
+    dplyr::filter(confounds == "True" | stringr::str_detect(type, "UKB")) |>
     dplyr::filter(
-      measure == "PMAT24_A_CR",
-      type == "simulation",
-      stringr::str_detect(task, "EMOTION", TRUE)
+      stringr::str_detect(replacement, "False", TRUE) |
+        stringr::str_detect(sim, "gold")
     ) |>
-    ggplot(aes(x = n_sub, y = avg)) +
-    facet_wrap(~task) +
-    geom_line() +
-    geom_errorbar(aes(ymin = lower, ymax = upper)) +
-    geom_point(
-      mapping = aes(x = n_sub, y = statistic_rep),
-      color = "gold",
-      data = dplyr::filter(
-        data_model_gold_gold_to_study,
-        measure == "PMAT24_A_CR",
-        type == "gold",
-        stringr::str_detect(task, "EMOTION", TRUE),
-        confounds == "True"
-      )
+    dplyr::filter(stringr::str_detect(type, "UKB_SMALL", TRUE)) |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0")
+    ) |>
+    dplyr::mutate(
+      task = stringr::str_to_lower(task),
+      type = stringr::str_to_lower(type)
+    )
+
+  gold_a <- prep |> dplyr::filter(sim == "gold")
+
+  a <- prep |>
+    dplyr::filter(sim == "simulation") |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = avg, color = type)) +
+    ggplot2::facet_wrap(~task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = lower, ymax = upper),
+      linewidth = 0.5,
+      width = 0,
+      alpha = 0.5
     ) +
-    scale_x_log10("N Sub") +
-    ylab("Average Rank Correlation (CI)\nPrediction-Truth (gF)") +
-    theme(legend.position = "bottom")
-  
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = avg - 2 * sem, ymax = avg + 2 * sem),
+      linewidth = 3,
+      width = 0
+    ) +
+    ggplot2::geom_point(
+      mapping = ggplot2::aes(x = n_sub, y = avg, fill = type),
+      data = gold_a,
+      pch = 21,
+      color = "gold"
+    ) +
+    ggplot2::scale_x_log10("N Sub") +
+    ggplot2::ylab("Average Rank Correlation\nPrediction-Truth (gF)") +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::scale_fill_viridis_d(option = "turbo") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+    )
+
   b <- data_model_study_to_study |>
-    dplyr::filter(confounds == "True") |>
+    dplyr::filter(model == "RIDGE_CV") |>
+    dplyr::filter(stringr::str_detect(replacement, "False", TRUE)) |>
+    dplyr::filter(stringr::str_detect(type, "UKB_SMALL", TRUE)) |>
+    dplyr::filter(confounds == "False", method == "consistency") |>
     dplyr::filter(
-      measure == "PMAT24_A_CR",
-      stringr::str_detect(task, "EMOTION", TRUE)
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0")
     ) |>
-    ggplot(aes(x = n_sub, y = icc, color = type), alpha = 0.5) +
-    facet_wrap(~task) +
-    geom_line() +
-    geom_errorbar(aes(ymin = lower, ymax = upper)) +
-    xlab("N Sub") +
-    ylab("ICC")
-  
-  cc <- data_model_sub_to_sub |>
-    dplyr::filter(confounds) |>
-    dplyr::filter(stringr::str_detect(task, "EMOTION", TRUE)) |>
-    ggplot(aes(x = r, y = task)) +
-    ggdist::stat_dots(quantiles = 100) +
-    ylab("Task") +
-    xlab("Pairwise Rank Correlation of Features\n(Sub to Sub)")
-  
-  a + b + cc +
+    dplyr::mutate(
+      task = stringr::str_to_lower(task),
+      type = stringr::str_to_lower(type)
+    ) |>
+    ggplot2::ggplot(
+      ggplot2::aes(x = n_sub, y = icc, color = type),
+      alpha = 0.5
+    ) +
+    ggplot2::facet_wrap(~task, nrow = 2, scales = "free_x") +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(ggplot2::aes(ymin = lower, ymax = upper)) +
+    ggplot2::scale_x_log10("N Sub") +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::ylab("ICC(C,1) of Predictions") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+    )
+
+  a +
+    b +
     patchwork::plot_layout(ncol = 1) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    theme_gray(base_size = 8) +
-    theme(
-      legend.position = "bottom",
-      legend.key.size = unit(8, "pt")
+    ggplot2::theme_gray(base_size = 8) +
+      ggplot2::theme(
+        legend.margin = margin(0, 0, 0, 0), # turned off for alignment
+        legend.justification.top = "left",
+        legend.justification.left = "bottom",
+        legend.justification.bottom = "right",
+        legend.justification.inside = c(1, 0),
+        legend.location = "plot"
+      )
+}
+
+
+make_model2 <- function(data_model_gold_gold_to_study2) {
+  prep <- data_model_gold_gold_to_study2 |>
+    dplyr::filter(model == "RIDGE_CV") |>
+    dplyr::filter(confounds == "True" | stringr::str_detect(type, "UKB")) |>
+    dplyr::filter(
+      stringr::str_detect(replacement, "False", TRUE) |
+        stringr::str_detect(sim, "gold")
+    ) |>
+    dplyr::filter(stringr::str_detect(type, "UKB_SMALL", TRUE)) |>
+    dplyr::mutate(
+      task = stringr::str_to_lower(task),
+      type = stringr::str_to_lower(type),
+      n_sub = dplyr::case_when(
+        sim == "gold" & stringr::str_detect(measure, "^f.") ~ "ukb",
+        sim == "gold" & stringr::str_detect(measure, "^f.", TRUE) ~ "hcp",
+        TRUE ~ as.character(n_sub)
+      ) |>
+        factor(
+          levels = c(
+            "20",
+            "40",
+            "60",
+            "80",
+            "100",
+            "hcp",
+            "1000",
+            "10000",
+            "ukb"
+          ),
+          labels = c("20", "40", "60", "80", "100", "hcp", "1k", "10k", "ukb"),
+          ordered = TRUE
+        )
+    )
+
+  avgs <- prep |>
+    dplyr::summarise(avg = mean(avg), .by = c(task, measure, n_sub)) |>
+    dplyr::mutate(
+      dataset = dplyr::if_else(
+        stringr::str_detect(measure, "^f."),
+        "ukb",
+        "hcpya"
+      )
+    )
+
+  ss <- avgs |>
+    dplyr::filter(n_sub %in% c("ukb", "hcp")) |>
+    dplyr::filter(avg > 0) |>
+    dplyr::distinct(measure, task)
+
+  a <- prep |>
+    dplyr::semi_join(ss) |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = avg)) +
+    ggplot2::facet_wrap(~task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_boxplot(
+      ggplot2::aes(fill = type),
+      outliers = FALSE
+    ) +
+    ggplot2::geom_line(
+      ggplot2::aes(group = measure, color = dataset),
+      data = dplyr::semi_join(avgs, ss),
+      alpha = 0.2
+    ) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::ylab(
+      "Rate of Significant Rank Correlation"
+    ) +
+    ggplot2::scale_color_manual(values = c("blue", viridisLite::turbo(4)[3])) +
+    ggplot2::scale_fill_viridis_d(option = "turbo") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+      fill = ggplot2::guide_legend(position = "inside")
+    )
+
+  # b <- data_model_study_to_study2 |>
+  #   dplyr::filter(confounds == "False") |>
+  #   dplyr::filter(model == "RIDGE_CV") |>
+  #   dplyr::filter(stringr::str_detect(type, "UKB_SMALL", TRUE)) |>
+  #   dplyr::filter(
+  #     measure %in% c("PMAT24_A_CR", "f.20016.2.0")
+  #   ) |>
+  #   ggplot(aes(x = n_sub, y = .estimate, color = type), alpha = 0.5) +
+  #   facet_wrap(~task) +
+  #   geom_line() +
+  #   xlab("N Sub") +
+  #   scale_color_viridis_d(option = "turbo") +
+  #   ylab("ICC(1) of Significance")
+  #
+  # a + b +
+  #   patchwork::plot_layout(ncol = 1) +
+  #   patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
+  #   theme_gray(base_size = 8) +
+  #     theme(
+  #       legend.position = "bottom",
+  #       legend.key.size = unit(8, "pt")
+  #     )
+  a +
+    ggplot2::theme(
+      legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
+      legend.justification.top = "left",
+      legend.justification.left = "bottom",
+      legend.justification.bottom = "right",
+      legend.justification.inside = c(1, 0)
     )
 }
 
-make_all_cog <- function(data_model_gold_gold_to_study) {
-  data_model_gold_gold_to_study |>
+make_model2_neg <- function(data_model_gold_gold_to_study2) {
+  prep <- data_model_gold_gold_to_study2 |>
+    dplyr::filter(model == "RIDGE_CV") |>
+    dplyr::filter(confounds == "True" | stringr::str_detect(type, "UKB")) |>
     dplyr::filter(
-      type == "simulation",
-      stringr::str_detect(task, "EMOTION", TRUE),
-      confounds == "True"
+      stringr::str_detect(replacement, "False", TRUE) |
+        stringr::str_detect(sim, "gold")
     ) |>
-    dplyr::mutate(max_avg = max(avg), .by = c(measure)) |>
+    dplyr::filter(stringr::str_detect(type, "UKB_SMALL", TRUE)) |>
     dplyr::mutate(
-      measure = stringr::str_replace_all(measure, "_", "\\\\_"),
-      measure = factor(measure),
-      measure = forcats::fct_reorder(measure, max_avg)
+      task = stringr::str_to_lower(task),
+      type = stringr::str_to_lower(type),
+      n_sub = dplyr::case_when(
+        sim == "gold" & stringr::str_detect(measure, "^f.") ~ "ukb",
+        sim == "gold" & stringr::str_detect(measure, "^f.", TRUE) ~ "hcp",
+        TRUE ~ as.character(n_sub)
+      ) |>
+        factor(
+          levels = c(
+            "20",
+            "40",
+            "60",
+            "80",
+            "100",
+            "hcp",
+            "1000",
+            "10000",
+            "ukb"
+          ),
+          labels = c("20", "40", "60", "80", "100", "hcp", "1k", "10k", "ukb"),
+          ordered = TRUE
+        )
+    )
+
+  avgs <- prep |>
+    dplyr::summarise(avg = mean(avg), .by = c(task, measure, n_sub)) |>
+    dplyr::mutate(
+      dataset = dplyr::if_else(
+        stringr::str_detect(measure, "^f."),
+        "ukb",
+        "hcpya"
+      )
+    )
+
+  ss <- avgs |>
+    dplyr::filter(n_sub %in% c("ukb", "hcp")) |>
+    dplyr::filter(avg > 0) |>
+    dplyr::distinct(measure, task)
+
+  a <- prep |>
+    dplyr::anti_join(ss) |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = avg)) +
+    ggplot2::facet_wrap(~task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_boxplot(
+      ggplot2::aes(fill = type),
+      outliers = FALSE
+    ) +
+    ggplot2::geom_line(
+      ggplot2::aes(group = measure, color = dataset),
+      data = dplyr::anti_join(avgs, ss),
+      alpha = 0.2
+    ) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::ylab(
+      "Rate of Significant Rank Correlation"
+    ) +
+    ggplot2::scale_color_manual(values = c("blue", viridisLite::turbo(4)[3])) +
+    ggplot2::scale_fill_viridis_d(option = "turbo") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+      fill = ggplot2::guide_legend(position = "inside")
+    )
+
+  a +
+    ggplot2::theme(
+      legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
+      legend.justification.top = "left",
+      legend.justification.left = "bottom",
+      legend.justification.bottom = "right",
+      legend.justification.inside = c(1, 0)
+    )
+}
+
+make_model3 <- function(
+  data_model_gold_gold_to_study3,
+  data_model_study_to_study3
+) {
+  prep <- data_model_gold_gold_to_study3 |>
+    dplyr::filter(model == "RIDGE_CV") |>
+    dplyr::filter(confounds == "True" | stringr::str_detect(type, "UKB")) |>
+    dplyr::filter(
+      stringr::str_detect(replacement, "False", TRUE)
     ) |>
-    ggplot(aes(x = n_sub, y = measure)) +
-    facet_wrap(~task) +
-    geom_raster(aes(fill = avg)) +
-    scale_fill_viridis_c(option = "turbo", name = "Rank\nCorrelation") +
-    xlab("N Sub") +
-    ylab("Instrument") +
-    theme_gray(base_size = 7) +
-    theme(
-      legend.position = "bottom",
-      legend.key.size = unit(8, "pt")
+    dplyr::filter(stringr::str_detect(type, "UKB_SMALL", TRUE)) |>
+    dplyr::mutate(
+      task = stringr::str_to_lower(task),
+      type = stringr::str_to_lower(type),
+      n_sub = factor(
+        n_sub,
+        levels = c(
+          "20",
+          "40",
+          "60",
+          "80",
+          "100",
+          "1000",
+          "10000"
+        ),
+        labels = c("20", "40", "60", "80", "100", "1k", "10k"),
+        ordered = TRUE
+      )
+    )
+
+  avgs <- prep |>
+    dplyr::summarise(
+      .estimate = mean(.estimate),
+      .by = c(task, measure, n_sub)
+    ) |>
+    dplyr::mutate(
+      dataset = dplyr::if_else(
+        stringr::str_detect(measure, "^f."),
+        "ukb",
+        "hcpya"
+      )
+    )
+
+  a <- prep |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = .estimate)) +
+    ggplot2::facet_wrap(~task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_boxplot(
+      ggplot2::aes(fill = type),
+      outliers = FALSE
+    ) +
+    ggplot2::geom_line(
+      ggplot2::aes(color = dataset, group = measure),
+      alpha = 0.1,
+      data = avgs
+    ) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::ylab(
+      "Product-Moment Correlation of Coefficients\n(Samples to Gold)"
+    ) +
+    ggplot2::scale_color_manual(values = c("blue", viridisLite::turbo(4)[3])) +
+    ggplot2::scale_fill_viridis_d(option = "turbo") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+      fill = ggplot2::guide_legend(position = "inside")
+    )
+
+  prep_b <- data_model_study_to_study3 |>
+    dplyr::filter(model == "RIDGE_CV") |>
+    dplyr::filter(stringr::str_detect(replacement, "False", TRUE)) |>
+    dplyr::filter(
+      stringr::str_detect(type, "UKB_SMALL", TRUE),
+      confounds == "True" | stringr::str_detect(type, "UKB")
+    ) |>
+    dplyr::mutate(
+      task = stringr::str_to_lower(task),
+      type = stringr::str_to_lower(type),
+      n_sub = factor(
+        n_sub,
+        levels = c(
+          "20",
+          "40",
+          "60",
+          "80",
+          "100",
+          "1000",
+          "10000"
+        ),
+        labels = c("20", "40", "60", "80", "100", "1k", "10k"),
+        ordered = TRUE
+      )
+    )
+
+  avgs_b <- prep_b |>
+    dplyr::summarise(
+      .estimate = mean(.estimate),
+      .by = c(n_sub, task, measure)
+    ) |>
+    dplyr::mutate(
+      dataset = dplyr::if_else(
+        stringr::str_detect(measure, "^f."),
+        "ukb",
+        "hcpya"
+      )
+    )
+
+  b <- prep_b |>
+    ggplot2::ggplot(
+      ggplot2::aes(x = n_sub, y = .estimate),
+      alpha = 0.5
+    ) +
+    ggplot2::facet_wrap(~task, nrow = 2, scales = "free_x") +
+    ggplot2::geom_boxplot(ggplot2::aes(fill = type), outliers = FALSE) +
+    ggplot2::geom_line(
+      ggplot2::aes(group = measure, color = dataset),
+      alpha = 0.1,
+      data = avgs_b
+    ) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::scale_fill_viridis_d(option = "turbo") +
+    ggplot2::scale_color_manual(values = c("blue", viridisLite::turbo(4)[3])) +
+    ggplot2::ylab("ICC(C,1) of Predictions") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+      fill = ggplot2::guide_legend(position = "inside")
+    )
+
+  a +
+    b +
+    patchwork::plot_layout(ncol = 1) +
+    patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
+    ggplot2::theme_gray(base_size = 8) +
+      ggplot2::theme(
+        legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
+        legend.justification.top = "left",
+        legend.justification.left = "bottom",
+        legend.justification.bottom = "right",
+        legend.justification.inside = c(1, 0),
+        legend.location = "plot"
+      )
+}
+
+
+make_model_model <- function(
+  data_model_gold_gold_to_study,
+  data_model_gold_gold_to_study2,
+  data_model_gold_gold_to_study3,
+  data_model_study_to_study,
+  data_model_study_to_study3
+) {
+  a <- data_model_gold_gold_to_study |>
+    dplyr::filter(task == "EMOTION") |>
+    dplyr::filter(confounds == "False") |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0"),
+      sim == "simulation"
+    ) |>
+    ggplot2::ggplot(aes(x = n_sub, y = avg, color = type)) +
+    ggplot2::facet_wrap(~model, scales = "free_x") +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = lower, ymax = upper),
+      linewidth = 0.5,
+      width = 0,
+      alpha = 0.5
+    ) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = avg - 2 * sem, ymax = avg + 2 * sem),
+      linewidth = 3,
+      width = 0
+    ) +
+    ggplot2::geom_point(
+      mapping = ggplot2::aes(x = n_sub, y = avg, fill = type),
+      data = dplyr::filter(
+        data_model_gold_gold_to_study,
+        task == "EMOTION",
+        measure %in% c("PMAT24_A_CR", "f.20016.2.0"),
+        sim == "gold",
+        confounds == "False"
+      ),
+      pch = 21,
+      color = "gold"
+    ) +
+    ggplot2::scale_x_log10("N Sub") +
+    ggplot2::ylab("Average Rank Correlation (CI)\nPrediction-Truth (gF)") +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::theme(legend.position = "bottom")
+
+  b <- data_model_study_to_study |>
+    dplyr::filter(task == "EMOTION") |>
+    dplyr::filter(confounds == "False", method == "consistency") |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0")
+    ) |>
+    ggplot2::ggplot(
+      ggplot2::aes(x = n_sub, y = icc, color = type),
+      alpha = 0.5
+    ) +
+    ggplot2::facet_wrap(~model) +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(aes(ymin = lower, ymax = upper)) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::ylab("ICC(C,1) of Predictions")
+
+  a2 <- data_model_gold_gold_to_study2 |>
+    dplyr::filter(task == "EMOTION") |>
+    dplyr::filter(confounds == "False") |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0"),
+      sim == "simulation"
+    ) |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = avg, color = type)) +
+    ggplot2::facet_wrap(~model, scales = "free_x") +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = lower, ymax = upper),
+      width = 0
+    ) +
+    ggplot2::geom_jitter(
+      mapping = ggplot2::aes(x = n_sub, y = avg, fill = type),
+      data = dplyr::filter(
+        data_model_gold_gold_to_study2,
+        measure %in% c("PMAT24_A_CR", "f.20016.2.0"),
+        sim == "gold",
+        confounds == "False"
+      ),
+      pch = 21,
+      color = "gold",
+      alpha = 0.3,
+      height = 0.05,
+      width = 0
+    ) +
+    ggplot2::scale_x_log10("N Sub") +
+    ggplot2::ylab(
+      "Rate of Significant Rank Correlation\nFor Fluid Intelligence Prediction"
+    ) +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::theme(legend.position = "bottom")
+
+  a3 <- data_model_gold_gold_to_study3 |>
+    dplyr::filter(confounds == "False") |>
+    dplyr::filter(task == "EMOTION") |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0")
+    ) |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = .estimate, color = type)) +
+    ggplot2::facet_wrap(~model, scales = "free_x") +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(ggplot2::aes(ymin = .lower, ymax = .upper)) +
+    ggplot2::scale_x_log10("N Sub") +
+    ggplot2::ylab(
+      "Product-Moment Correlation of Coefficients\n(Samples to Gold)"
+    ) +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::theme(legend.position = "bottom")
+
+  b3 <- data_model_study_to_study3 |>
+    dplyr::filter(task == "EMOTION") |>
+    dplyr::filter(confounds == "False") |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0")
+    ) |>
+    ggplot2::ggplot(
+      ggplot2::aes(x = n_sub, y = .estimate, color = type),
+      alpha = 0.5
+    ) +
+    ggplot2::facet_wrap(~model) +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(ggplot2::aes(ymin = .lower, ymax = .upper)) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::ylab("ICC(C,1) of Coefficients")
+
+  a +
+    b +
+    a2 +
+    a3 +
+    b3 +
+    ggplot2::plot_layout(guides = "collect") &
+    ggplot2::theme(legend.position = "bottom")
+}
+
+
+make_all_cog <- function(
+  data_model_gold_gold_to_study,
+  data_model_study_to_study
+) {
+  .data_model_gold_gold_to_study <- data_model_gold_gold_to_study |>
+    dplyr::filter(
+      model == "RIDGE_CV",
+      stringr::str_detect(type, "UKB_SMALL", TRUE),
+      stringr::str_detect(replacement, "False", TRUE) | sim == "gold"
+    ) |>
+    dplyr::mutate(
+      task = stringr::str_to_lower(task),
+      type = stringr::str_to_lower(type),
+      n_sub = dplyr::case_when(
+        sim == "gold" & stringr::str_detect(measure, "^f.") ~ "ukb",
+        sim == "gold" & stringr::str_detect(measure, "^f.", TRUE) ~ "hcp",
+        TRUE ~ as.character(n_sub)
+      ),
+      n_sub = factor(
+        n_sub,
+        levels = c(
+          "20",
+          "40",
+          "60",
+          "80",
+          "100",
+          "hcp",
+          "1000",
+          "10000",
+          "ukb"
+        ),
+        labels = c("20", "40", "60", "80", "100", "hcp", "1k", "10k", "ukb"),
+        ordered = TRUE
+      )
+    )
+
+  avgs <- .data_model_gold_gold_to_study |>
+    dplyr::summarise(avg = mean(avg), .by = c(task, measure, n_sub)) |>
+    dplyr::mutate(
+      dataset = dplyr::if_else(
+        stringr::str_detect(measure, "^f."),
+        "ukb",
+        "hcpya"
+      )
+    )
+
+  a <- .data_model_gold_gold_to_study |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = avg)) +
+    ggplot2::facet_wrap(~task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_boxplot(ggplot2::aes(fill = type), outliers = FALSE) +
+    ggplot2::geom_line(
+      ggplot2::aes(group = measure, color = dataset),
+      alpha = 0.1,
+      data = avgs
+    ) +
+    ggplot2::scale_color_manual(values = c("blue", viridisLite::turbo(4)[3])) +
+    ggplot2::scale_fill_viridis_d(option = "turbo") +
+    ggplot2::ylab(
+      "Average Rank Correlation"
+    ) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+      fill = ggplot2::guide_legend(position = "inside"),
+    )
+
+  avgs_b <- data_model_study_to_study |>
+    dplyr::filter(model == "RIDGE_CV") |>
+    dplyr::filter(stringr::str_detect(replacement, "False", TRUE)) |>
+    dplyr::filter(
+      stringr::str_detect(type, "UKB_SMALL", TRUE),
+      stringr::str_detect(method, "consis"),
+      confounds == "True" | stringr::str_detect(type, "UKB")
+    ) |>
+    dplyr::summarise(icc = mean(icc), .by = c(n_sub, task, measure)) |>
+    dplyr::mutate(
+      task = stringr::str_to_lower(task),
+      n_sub = factor(
+        n_sub,
+        levels = c("20", "40", "60", "80", "100", "1000", "10000"),
+        labels = c("20", "40", "60", "80", "100", "1k", "10k"),
+        ordered = TRUE
+      ),
+      dataset = dplyr::if_else(
+        stringr::str_detect(measure, "^f."),
+        "ukb",
+        "hcpya"
+      )
+    )
+
+  b <- data_model_study_to_study |>
+    dplyr::filter(model == "RIDGE_CV") |>
+    dplyr::filter(stringr::str_detect(replacement, "False", TRUE)) |>
+    dplyr::filter(stringr::str_detect(type, "UKB_SMALL", TRUE)) |>
+    dplyr::filter(
+      confounds == "True" | stringr::str_detect(type, "UKB"),
+      method == "consistency"
+    ) |>
+    dplyr::mutate(
+      task = stringr::str_to_lower(task),
+      type = stringr::str_to_lower(type),
+      n_sub = factor(
+        n_sub,
+        levels = c("20", "40", "60", "80", "100", "1000", "10000"),
+        labels = c("20", "40", "60", "80", "100", "1k", "10k"),
+        ordered = TRUE
+      )
+    ) |>
+    ggplot2::ggplot(
+      ggplot2::aes(x = n_sub, y = icc),
+      alpha = 0.5
+    ) +
+    ggplot2::facet_wrap(~task, nrow = 2, scales = "free_x") +
+    ggplot2::geom_boxplot(ggplot2::aes(fill = type), outliers = FALSE) +
+    ggplot2::geom_line(
+      ggplot2::aes(group = measure, color = dataset),
+      alpha = 0.1,
+      data = avgs_b
+    ) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::scale_fill_viridis_d(option = "turbo") +
+    ggplot2::scale_color_manual(values = c("blue", viridisLite::turbo(4)[3])) +
+    ggplot2::ylab("ICC(C,1) of Predictions") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+      fill = ggplot2::guide_legend(position = "inside")
+    )
+
+  a +
+    b +
+    patchwork::plot_layout(nrow = 2) +
+    patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
+    ggplot2::theme_gray(base_size = 8) &
+    ggplot2::theme(
+      legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
+      legend.justification.top = "left",
+      legend.justification.left = "bottom",
+      legend.justification.bottom = "right",
+      legend.justification.inside = c(1, 0),
+      legend.location = "plot",
+      legend.box = "horizontal"
     )
 }
 
@@ -563,7 +1338,8 @@ make_model_all_icc <- function(data_model_study_to_study, type) {
   data_model_study_to_study |>
     dplyr::filter(
       stringr::str_detect(task, "EMOTION", TRUE),
-      confounds == "True") |>
+      confounds == "True"
+    ) |>
     dplyr::filter(type == .env$type) |>
     dplyr::mutate(max_avg = max(icc), .by = c(measure)) |>
     dplyr::mutate(
@@ -571,14 +1347,14 @@ make_model_all_icc <- function(data_model_study_to_study, type) {
       measure = factor(measure),
       measure = forcats::fct_reorder(measure, max_avg)
     ) |>
-    ggplot(aes(x = n_sub, y = measure)) +
-    facet_wrap(~task) +
-    geom_raster(aes(fill = icc)) +
-    scale_fill_viridis_c(option = "turbo", name = "ICC(C,1)") +
-    xlab("N Sub") +
-    ylab("Instrument") +
-    theme_gray(base_size = 7) +
-    theme(
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = measure)) +
+    ggplot2::facet_wrap(~task) +
+    ggplot2::geom_raster(ggplot2::aes(fill = icc)) +
+    ggplot2::scale_fill_viridis_c(option = "turbo", name = "ICC(C,1)") +
+    ggplot2::xlab("N Sub") +
+    ggplot2::ylab("Instrument") +
+    ggplot2::theme_gray(base_size = 7) +
+    ggplot2::theme(
       legend.position = "bottom",
       legend.key.size = unit(8, "pt")
     )
@@ -586,7 +1362,7 @@ make_model_all_icc <- function(data_model_study_to_study, type) {
 
 
 make_tikz <- function(p, file, width, height) {
-  ggsave(
+  ggplot2::ggsave(
     file,
     p,
     tikzDevice::tikz,
@@ -595,4 +1371,314 @@ make_tikz <- function(p, file, width, height) {
     standAlone = TRUE
   )
   file
+}
+
+plot_sigmas <- function(.data) {
+  .data |>
+    tidyr::pivot_longer(c(sigma2_b, sigma2_w, var.data)) |>
+    ggplot2::ggplot(
+      ggplot2::aes(x = n_sub, y = value, color = type)
+    ) +
+    ggplot2::geom_line() +
+    ggplot2::facet_grid(model ~ name) +
+    ggplot2::scale_color_viridis_d(option = "turbo")
+}
+
+make_model_sigmas <- function(data_model_study_to_study) {
+  data_model_study_to_study |>
+    dplyr::filter(
+      method == "consistency",
+      task == "EMOTION",
+      confounds == "False"
+    ) |>
+    dplyr::select(n_sub:var.data) |>
+    plot_sigmas()
+}
+
+make_model_sigmas3 <- function(data_model_study_to_study3) {
+  data_model_study_to_study3 |>
+    dplyr::filter(task == "EMOTION", confounds == "False") |>
+    dplyr::select(type:n_sub, sigma2_b:var.data) |>
+    na.omit() |>
+    plot_sigmas()
+}
+
+make_model_model_ukb <- function(
+  data_model_gold_gold_to_study,
+  data_model_gold_gold_to_study2,
+  data_model_gold_gold_to_study3,
+  data_model_study_to_study,
+  data_model_study_to_study3
+) {
+  a <- data_model_gold_gold_to_study |>
+    dplyr::filter(stringr::str_detect(type, "UKB")) |>
+    dplyr::filter(task == "EMOTION") |>
+    dplyr::filter(confounds == "False") |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0"),
+      sim == "simulation"
+    ) |>
+    ggplot2::ggplot(aes(x = n_sub, y = avg, color = type)) +
+    ggplot2::facet_wrap(~model, scales = "free_x") +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(ggplot2::aes(
+      ymin = avg - 2 * sem,
+      ymax = avg + 2 * sem
+    )) +
+    ggplot2::ylab("Average Rank Correlation (CI)\nPrediction-Truth (gF)") +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::theme(legend.position = "bottom")
+
+  b <- data_model_study_to_study |>
+    dplyr::filter(task == "EMOTION") |>
+    dplyr::filter(confounds == "False", method == "consistency") |>
+    dplyr::filter(stringr::str_detect(type, "UKB")) |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0")
+    ) |>
+    ggplot2::ggplot(
+      ggplot2::aes(x = n_sub, y = icc, color = type),
+      alpha = 0.5
+    ) +
+    ggplot2::facet_wrap(~model) +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(ggplot2::aes(ymin = lower, ymax = upper)) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::ylab("ICC(C,1) of Predictions")
+
+  a2 <- data_model_gold_gold_to_study2 |>
+    dplyr::filter(task == "EMOTION") |>
+    dplyr::filter(confounds == "False") |>
+    dplyr::filter(stringr::str_detect(type, "UKB")) |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0"),
+      sim == "simulation"
+    ) |>
+    ggplot2::ggplot(aes(x = n_sub, y = avg, color = type)) +
+    ggplot2::facet_wrap(~model, scales = "free_x") +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(aes(ymin = lower, ymax = upper), width = 0) +
+    ggplot2::ylab(
+      "Rate of Significant Rank Correlation\nFor Fluid Intelligence Prediction"
+    ) +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::theme(legend.position = "bottom")
+
+  a3 <- data_model_gold_gold_to_study3 |>
+    dplyr::filter(stringr::str_detect(type, "UKB")) |>
+    dplyr::filter(confounds == "False") |>
+    dplyr::filter(task == "EMOTION") |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0")
+    ) |>
+    ggplot2::ggplot(aes(x = n_sub, y = .estimate, color = type)) +
+    ggplot2::facet_wrap(~model, scales = "free_x") +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(aes(ymin = .lower, ymax = .upper)) +
+    ggplot2::ylab(
+      "Product-Moment Correlation of Coefficients\n(Samples to Gold)"
+    ) +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::theme(legend.position = "bottom")
+
+  b3 <- data_model_study_to_study3 |>
+    dplyr::filter(stringr::str_detect(type, "UKB")) |>
+    dplyr::filter(task == "EMOTION") |>
+    dplyr::filter(confounds == "False") |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0")
+    ) |>
+    ggplot2::ggplot(aes(x = n_sub, y = .estimate, color = type), alpha = 0.5) +
+    ggplot2::facet_wrap(~model) +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(aes(ymin = .lower, ymax = .upper)) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::ylab("ICC(C,1) of Coefficients")
+
+  a +
+    b +
+    a2 +
+    a3 +
+    b3 +
+    ggplot2::plot_layout(guides = "collect") &
+    ggplot2::theme(legend.position = "bottom")
+}
+
+make_model_sigmas_ukb <- function(data_model_study_to_study) {
+  data_model_study_to_study |>
+    dplyr::filter(
+      method == "consistency",
+      task == "EMOTION",
+      confounds == "False",
+      stringr::str_detect(type, "UKB")
+    ) |>
+    dplyr::select(n_sub:var.data) |>
+    plot_sigmas() +
+    ggplot2::ggtitle("Variances for Predictions")
+}
+
+make_model_sigmas3_ukb <- function(data_model_study_to_study3) {
+  data_model_study_to_study3 |>
+    dplyr::filter(
+      task == "EMOTION",
+      confounds == "False",
+      stringr::str_detect(type, "UKB")
+    ) |>
+    plot_sigmas() +
+    ggplot2::ggtitle("Variances for Coefficients")
+}
+
+make_table_of_studies_without_peaks <- function(study_peaks, dst) {
+  study_peaks |>
+    dplyr::distinct(type, Task, iter, n_sub, threshold) |>
+    dplyr::count(type, Task, n_sub, threshold) |>
+    dplyr::filter(n < 100) |>
+    dplyr::mutate(
+      `Proportion With Peak` = n / 100,
+      Task = stringr::str_to_lower(Task)
+    ) |>
+    dplyr::select(-n) |>
+    gt::gt() |>
+    gt::as_latex() |>
+    as.character() |>
+    readr::write_lines(dst)
+  dst
+}
+
+make_modelroi <- function(data_modelroi_gold_gold_to_study) {
+  prep <- data_modelroi_gold_gold_to_study |>
+    dplyr::filter(model == "RIDGE_CV") |>
+    dplyr::filter(stringr::str_detect(type, "UKB")) |>
+    dplyr::filter(
+      stringr::str_detect(replacement, "False", TRUE) |
+        stringr::str_detect(sim, "gold")
+    ) |>
+    dplyr::filter(stringr::str_detect(type, "UKB_SMALL", TRUE)) |>
+    dplyr::filter(
+      measure %in% c("PMAT24_A_CR", "f.20016.2.0")
+    ) |>
+    dplyr::mutate(
+      task = stringr::str_to_lower(task),
+      type = stringr::str_to_lower(type)
+    )
+
+  gold_a <- prep |> dplyr::filter(sim == "gold")
+
+  prep |>
+    dplyr::filter(sim == "simulation") |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = avg)) +
+    ggplot2::facet_wrap(~task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_line() +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = lower, ymax = upper),
+      linewidth = 0.5,
+      width = 0,
+      alpha = 0.5
+    ) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = avg - 2 * sem, ymax = avg + 2 * sem),
+      linewidth = 3,
+      width = 0
+    ) +
+    ggplot2::geom_point(
+      mapping = ggplot2::aes(x = n_sub, y = avg),
+      data = gold_a,
+      pch = 21,
+      color = "gold",
+      fill = "gold"
+    ) +
+    ggplot2::scale_x_log10("N Sub") +
+    ggplot2::ylab("Average Rank Correlation\nPrediction-Truth (gF)") +
+    ggplot2::scale_color_viridis_d(option = "turbo") +
+    ggplot2::scale_fill_viridis_d(option = "turbo") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+    ) +
+    ggplot2::theme_gray(base_size = 8)
+}
+
+make_model_r2 <- function(data_model_gold_gold_to_study_r2) {
+  prep <- data_model_gold_gold_to_study_r2 |>
+    dplyr::filter(model == "RIDGE_CV") |>
+    dplyr::filter(confounds == "True" | stringr::str_detect(type, "UKB")) |>
+    dplyr::filter(
+      stringr::str_detect(replacement, "False", TRUE) |
+        stringr::str_detect(sim, "gold")
+    ) |>
+    dplyr::filter(stringr::str_detect(type, "UKB_SMALL", TRUE)) |>
+    dplyr::mutate(
+      task = stringr::str_to_lower(task),
+      type = stringr::str_to_lower(type),
+      n_sub = dplyr::case_when(
+        sim == "gold" & stringr::str_detect(measure, "^f.") ~ "ukb",
+        sim == "gold" & stringr::str_detect(measure, "^f.", TRUE) ~ "hcp",
+        TRUE ~ as.character(n_sub)
+      ),
+      n_sub = factor(
+        n_sub,
+        levels = c(
+          "20",
+          "40",
+          "60",
+          "80",
+          "100",
+          "hcp",
+          "1000",
+          "10000",
+          "ukb"
+        ),
+        labels = c(
+          "20",
+          "40",
+          "60",
+          "80",
+          "100",
+          "hcp",
+          "1k",
+          "10k",
+          "ukb"
+        ),
+        ordered = TRUE
+      ),
+      avg = dplyr::if_else(avg < 0, 0, avg)
+    )
+
+  avgs <- prep |>
+    dplyr::summarise(avg = mean(avg), .by = c(task, measure, n_sub)) |>
+    dplyr::mutate(
+      dataset = dplyr::if_else(
+        stringr::str_detect(measure, "^f."),
+        "ukb",
+        "hcpya"
+      )
+    )
+
+  prep |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = avg)) +
+    ggplot2::facet_wrap(~task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_boxplot(ggplot2::aes(fill = type), outliers = FALSE) +
+    ggplot2::geom_line(
+      ggplot2::aes(color = dataset, group = measure),
+      data = avgs,
+      alpha = 0.2
+    ) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::ylab("Average Coefficient of Determination") +
+    ggplot2::coord_cartesian(ylim = c(0, NA)) +
+    ggplot2::scale_color_manual(values = c("blue", viridisLite::turbo(4)[3])) +
+    ggplot2::scale_fill_viridis_d(option = "turbo") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+      fill = ggplot2::guide_legend(position = "inside"),
+    ) +
+    ggplot2::theme(
+      legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
+      legend.justification.top = "left",
+      legend.justification.left = "bottom",
+      legend.justification.bottom = "right",
+      legend.justification.inside = c(1, 0),
+      legend.location = "plot"
+    )
 }
