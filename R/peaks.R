@@ -324,3 +324,141 @@ make_peaks_gold_table <- function(data_peak_study_to_gold, dst) {
     as.character() |>
     readr::write_lines(dst)
 }
+
+
+make_peaks_by_fwe <- function(gold_peaks, maxes) {
+  augmented <- augment_distance2(maxes = maxes, gold_peaks = gold_peaks)
+
+  at_ <- make_atlas_full() |>
+    dplyr::mutate(dplyr::across(c(x, y, z), as.integer))
+
+  gold_peaks_ <- gold_peaks |>
+    dplyr::left_join(at_, by = dplyr::join_by(x, y, z)) |>
+    dplyr::group_by(Task, label) |>
+    dplyr::slice_max(
+      order_by = Value,
+      n = 1,
+      with_ties = FALSE
+    ) |> # grab highest peak from each label
+    dplyr::group_by(Task) |>
+    dplyr::slice_max(
+      order_by = Value,
+      n = 10,
+      with_ties = FALSE
+    ) |> # grab highest 10 peaks (distinct labels)
+    dplyr::ungroup() |>
+    dplyr::distinct(Task, x, y, z)
+
+  d <- augmented |>
+    dplyr::semi_join(gold_peaks_, by = dplyr::join_by(x, y, z, Task)) |>
+    dplyr::mutate(
+      within_2 = d < 2,
+      within_4 = d < 4,
+      within_8 = d < 8,
+      within_16 = d < 16,
+      within_32 = d < 32,
+      within_64 = d < 64,
+    ) |>
+    dplyr::summarize(
+      dplyr::across(
+        tidyselect::starts_with("within"),
+        sum
+      ),
+      .by = c(Task, n_sub, x, y, z, fwe_correction)
+    ) |>
+    tidyr::pivot_longer(
+      tidyselect::starts_with("within"),
+      values_to = "n_simulations",
+      names_to = "within",
+      names_pattern = "within_([[:digit:]]+)",
+      names_transform = as.integer
+    ) |>
+    dplyr::left_join(gold_peaks_, by = dplyr::join_by(Task, x, y, z)) |>
+    tidyr::unite(col = "peak", x, y, z) |>
+    dplyr::mutate(
+      n_simulations = n_simulations / 100,
+      n_sub = glue::glue("N Sub: {n_sub}"),
+      n_sub = factor(
+        n_sub,
+        levels = c(
+          "N Sub: 20",
+          "N Sub: 40",
+          "N Sub: 60",
+          "N Sub: 80",
+          "N Sub: 100"
+        )
+      )
+    )
+
+  d |>
+    dplyr::mutate(
+      g = interaction(peak, fwe_correction),
+      Task = stringr::str_to_lower(Task)
+    ) |>
+    ggplot2::ggplot(
+      ggplot2::aes(
+        x = within,
+        y = n_simulations,
+        color = fwe_correction,
+        group = g
+      )
+    ) +
+    ggplot2::geom_point(alpha = 0.2) +
+    ggplot2::geom_line(alpha = 0.2) +
+    ggplot2::facet_grid(n_sub ~ Task) +
+    ggplot2::scale_y_continuous(
+      "Proportion Simulations w/\nPeak in Radius",
+      limits = c(0, 1),
+      breaks = c(0, 0.5, 1),
+      labels = c(0, 0.5, 1)
+    ) +
+    ggplot2::scale_x_continuous(
+      "Radius (mm)",
+      transform = "log2"
+    ) +
+    ggplot2::labs(color = "FWE Correction") +
+    ggplot2::theme(legend.position = "bottom")
+}
+
+make_ecdf_peak_reliability <- function(data_peak_study_to_study) {
+  comps <- data_peak_study_to_study |>
+    dplyr::filter(threshold == 0, rank == 1) |>
+    dplyr::group_nest(Task, type, n_sub) |>
+    dplyr::mutate(f = purrr::map(data, ~ ecdf(.x$d))) |>
+    dplyr::select(-data) |>
+    tidyr::crossing(q = seq(0, 1, length.out = 100)) |>
+    dplyr::mutate(d = purrr::map2_dbl(f, q, ~ quantile(.x, .y))) |>
+    dplyr::select(-f) |>
+    tidyr::pivot_wider(names_from = type, values_from = d)
+
+  a <- comps |>
+    na.omit() |>
+    ggplot2::ggplot(ggplot2::aes(y = UKB, x = VOL)) +
+    ggplot2::geom_abline() +
+    ggplot2::geom_point(ggplot2::aes(color = n_sub), alpha = 0.5) +
+    ggplot2::coord_cartesian()
+
+  b <- comps |>
+    ggplot2::ggplot(ggplot2::aes(y = MSMALL, x = VOL)) +
+    ggplot2::geom_abline() +
+    ggplot2::geom_point(ggplot2::aes(color = n_sub), alpha = 0.5) +
+    ggplot2::facet_wrap(~Task, nrow = 2)
+
+  cc <- comps |>
+    ggplot2::ggplot(ggplot2::aes(y = MSMALL, x = SURFACE), alpha = 0.5) +
+    ggplot2::geom_abline() +
+    ggplot2::geom_point(ggplot2::aes(color = n_sub), alpha = 0.5) +
+    ggplot2::facet_wrap(~Task, nrow = 2)
+
+  a +
+    b +
+    cc +
+    patchwork::plot_layout(
+      design = "
+122
+133
+  "
+    ) +
+    patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
+    ggplot2::theme_gray(base_size = 8)
+}

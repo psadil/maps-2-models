@@ -8,7 +8,7 @@ gii1 <- "/Users/psadil/Desktop/ciftitmp/165840.L.midthickness_MSMAll.32k_fs_LR.s
 surf0 <- freesurferformats::read.fs.surface(gii0)
 surf1 <- freesurferformats::read.fs.surface(gii1)
 
-((surf0$vertices + surf1$vertices) / 2) |> 
+((surf0$vertices + surf1$vertices) / 2) |>
   head()
 
 merged <- freesurferformats::read.fs.surface("/Users/psadil/Desktop/ciftitmp/merged.surf.gii")
@@ -29,7 +29,7 @@ gii <- freesurferformats::read.fs.surface(left_surface)
 faces <- as_tibble(gii$faces)
 
 connected_to_1 <- faces |>
-  filter(V1==1 | V2==1 | V3==1) |>
+  filter(V1 == 1 | V2 == 1 | V3 == 1) |>
   tidyr::pivot_longer(everything()) |>
   distinct(value) |>
   magrittr::use_series("value") |>
@@ -50,9 +50,9 @@ ciftiTools::run_wb_cmd(
   glue::glue("-cifti-extrema {new_file} 1 1 COLUMN {cifti_out} -left-surface {left_surface} -right-surface {right_surface} -only-maxima")
 )
 
-xii_max <- ciftiTools::read_cifti(cifti_out) 
+xii_max <- ciftiTools::read_cifti(cifti_out)
 # conclusion: cifti-extrema cares only about connectivity, plus the area part
- 
+
 
 # is the geodesic distance really just a search along a weighted graph?
 
@@ -66,8 +66,8 @@ gii_distances2 <- freesurferformats::read.fs.morph(distances2)
 gii_distances2[connected_to_1]
 
 vertices <- as_tibble(gii$vertices)
-dist(rbind(gii$vertices[1,],gii$vertices[13,]))
-dist(rbind(gii$vertices[1,],gii$vertices[69,]))
+dist(rbind(gii$vertices[1, ], gii$vertices[13, ]))
+dist(rbind(gii$vertices[1, ], gii$vertices[69, ]))
 # conclusion: geodesic distance is building a path of euclidean distances between vertices
 
 # what happens when using corrected_areas?
@@ -85,6 +85,3 @@ gii_distances[connected_to_1]
 # seems like the use of corrected-areas does something complicated with a combination
 # of current areas and correction areas:
 # https://github.com/Washington-University/workbench/blob/f32180853d5744dc5441df7539bed4a558eada0f/src/Files/GeodesicHelper.cxx#L47
-
-
-

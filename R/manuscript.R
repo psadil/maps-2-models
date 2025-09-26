@@ -233,14 +233,20 @@ make_prop_active_most_active_roi_ptfce_null <- function(
     ggplot2::theme_gray(base_size = 12)
 }
 
-make_prop_active_most_active_roi_ptfce <- function(data_roi_study_to_gold) {
-  data_roi_study_to_gold |>
-    ggplot2::ggplot(ggplot2::aes(
-      x = n_sub,
-      y = prop,
-      group = label,
-      color = abs(d)
-    )) +
+.make_prop_active_most_active_roi <- function(
+  d,
+  breaks = c(40, 80),
+  transform = "identity"
+) {
+  d |>
+    ggplot2::ggplot(
+      ggplot2::aes(
+        x = n_sub,
+        y = avg,
+        group = label,
+        color = abs(d)
+      )
+    ) +
     ggplot2::geom_point(alpha = 0.2) +
     ggplot2::geom_line(alpha = 0.2) +
     ggplot2::facet_grid(n_parcels ~ Task) +
@@ -252,16 +258,49 @@ make_prop_active_most_active_roi_ptfce <- function(data_roi_study_to_gold) {
     ) +
     ggplot2::scale_x_continuous(
       "N Sub",
-      breaks = c(40, 80),
-      labels = c(40, 80)
+      breaks = breaks,
+      labels = breaks,
+      transform = transform
     ) +
     ggplot2::scale_color_viridis_c(
       "Abs. Effect Size",
       option = "turbo",
-      limits = c(0, NA),
+      limits = c(0, 3),
       n.breaks = 3
+    )
+}
+
+make_prop_active_most_active_roi <- function(data_roi_study_to_gold2) {
+  d <- data_roi_study_to_gold2 |>
+    dplyr::mutate(
+      Task = stringr::str_to_lower(Task),
+    )
+  vol <- dplyr::filter(d, type == "VOL") |>
+    .make_prop_active_most_active_roi() +
+    ggplot2::ggtitle("VOL")
+
+  ukb <- dplyr::filter(d, type == "UKB") |>
+    .make_prop_active_most_active_roi(
+      transform = "log10",
+      breaks = c(40, 80, 100, 1000, 10000)
     ) +
-    ggplot2::theme(legend.position = "bottom")
+    ggplot2::ggtitle("UKB")
+
+  msmall <- dplyr::filter(d, type == "MSMALL") |>
+    .make_prop_active_most_active_roi() +
+    ggplot2::ggtitle("MSMALL")
+
+  surface <- dplyr::filter(d, type == "SURFACE") |>
+    .make_prop_active_most_active_roi() +
+    ggplot2::ggtitle("SURFACE")
+
+  vol +
+    surface +
+    msmall +
+    ukb +
+    patchwork::plot_layout(ncol = 1, guides = "collect") &
+    ggplot2::theme_gray(base_size = 8) +
+      ggplot2::theme(legend.position = "bottom")
 }
 
 .make_1_peaks <- function(data_peak_study_to_gold, type) {
@@ -750,11 +789,16 @@ make_model2 <- function(data_model_gold_gold_to_study2) {
           ),
           labels = c("20", "40", "60", "80", "100", "hcp", "1k", "10k", "ukb"),
           ordered = TRUE
-        )
+        ),
+      v = (a * b) / ((a + b)^2 * (a + b + 1))
     )
 
   avgs <- prep |>
-    dplyr::summarise(avg = mean(avg), .by = c(task, measure, n_sub)) |>
+    dplyr::summarise(
+      avg = mean(avg),
+      v = mean(v),
+      .by = c(task, measure, n_sub)
+    ) |>
     dplyr::mutate(
       dataset = dplyr::if_else(
         stringr::str_detect(measure, "^f."),
@@ -792,36 +836,45 @@ make_model2 <- function(data_model_gold_gold_to_study2) {
       fill = ggplot2::guide_legend(position = "inside")
     )
 
-  # b <- data_model_study_to_study2 |>
-  #   dplyr::filter(confounds == "False") |>
-  #   dplyr::filter(model == "RIDGE_CV") |>
-  #   dplyr::filter(stringr::str_detect(type, "UKB_SMALL", TRUE)) |>
-  #   dplyr::filter(
-  #     measure %in% c("PMAT24_A_CR", "f.20016.2.0")
-  #   ) |>
-  #   ggplot(aes(x = n_sub, y = .estimate, color = type), alpha = 0.5) +
-  #   facet_wrap(~task) +
-  #   geom_line() +
-  #   xlab("N Sub") +
-  #   scale_color_viridis_d(option = "turbo") +
-  #   ylab("ICC(1) of Significance")
-  #
-  # a + b +
-  #   patchwork::plot_layout(ncol = 1) +
-  #   patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-  #   theme_gray(base_size = 8) +
-  #     theme(
-  #       legend.position = "bottom",
-  #       legend.key.size = unit(8, "pt")
-  #     )
-  a +
-    ggplot2::theme(
-      legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
-      legend.justification.top = "left",
-      legend.justification.left = "bottom",
-      legend.justification.bottom = "right",
-      legend.justification.inside = c(1, 0)
+  b <- prep |>
+    dplyr::filter(!n_sub %in% c("hcp", "ukb")) |>
+    dplyr::semi_join(ss) |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = v)) +
+    ggplot2::facet_wrap(~task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_boxplot(
+      ggplot2::aes(fill = type),
+      outliers = FALSE
+    ) +
+    ggplot2::geom_line(
+      ggplot2::aes(group = measure, color = dataset),
+      data = dplyr::semi_join(avgs, ss) |>
+        dplyr::filter(!n_sub %in% c("hcp", "ukb")),
+      alpha = 0.2
+    ) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::ylab(
+      "Var of Significant Rank Correlation"
+    ) +
+    ggplot2::scale_color_manual(values = c("blue", viridisLite::turbo(4)[3])) +
+    ggplot2::scale_fill_viridis_d(option = "turbo") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+      fill = ggplot2::guide_legend(position = "inside")
     )
+
+  a +
+    b +
+    patchwork::plot_layout(nrow = 2) +
+    patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
+    ggplot2::theme_gray(base_size = 8) +
+      ggplot2::theme(
+        legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
+        legend.justification.top = "left",
+        legend.justification.left = "bottom",
+        legend.justification.bottom = "right",
+        legend.justification.inside = c(1, 0),
+        legend.box = "horizontal"
+      )
 }
 
 make_model2_neg <- function(data_model_gold_gold_to_study2) {
@@ -855,11 +908,16 @@ make_model2_neg <- function(data_model_gold_gold_to_study2) {
           ),
           labels = c("20", "40", "60", "80", "100", "hcp", "1k", "10k", "ukb"),
           ordered = TRUE
-        )
+        ),
+      v = (a * b) / ((a + b)^2 * (a + b + 1))
     )
 
   avgs <- prep |>
-    dplyr::summarise(avg = mean(avg), .by = c(task, measure, n_sub)) |>
+    dplyr::summarise(
+      avg = mean(avg),
+      v = mean(v),
+      .by = c(task, measure, n_sub)
+    ) |>
     dplyr::mutate(
       dataset = dplyr::if_else(
         stringr::str_detect(measure, "^f."),
@@ -897,14 +955,45 @@ make_model2_neg <- function(data_model_gold_gold_to_study2) {
       fill = ggplot2::guide_legend(position = "inside")
     )
 
-  a +
-    ggplot2::theme(
-      legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
-      legend.justification.top = "left",
-      legend.justification.left = "bottom",
-      legend.justification.bottom = "right",
-      legend.justification.inside = c(1, 0)
+  b <- prep |>
+    dplyr::filter(!n_sub %in% c("hcp", "ukb")) |>
+    dplyr::anti_join(ss) |>
+    ggplot2::ggplot(ggplot2::aes(x = n_sub, y = v)) +
+    ggplot2::facet_wrap(~task, scales = "free_x", nrow = 2) +
+    ggplot2::geom_boxplot(
+      ggplot2::aes(fill = type),
+      outliers = FALSE
+    ) +
+    ggplot2::geom_line(
+      ggplot2::aes(group = measure, color = dataset),
+      data = dplyr::anti_join(avgs, ss) |>
+        dplyr::filter(!n_sub %in% c("hcp", "ukb")),
+      alpha = 0.2
+    ) +
+    ggplot2::xlab("N Sub") +
+    ggplot2::ylab(
+      "Rate of Significant Rank Correlation"
+    ) +
+    ggplot2::scale_color_manual(values = c("blue", viridisLite::turbo(4)[3])) +
+    ggplot2::scale_fill_viridis_d(option = "turbo") +
+    ggplot2::guides(
+      colour = ggplot2::guide_legend(position = "inside"),
+      fill = ggplot2::guide_legend(position = "inside")
     )
+
+  a +
+    b +
+    patchwork::plot_layout(nrow = 2) +
+    patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
+    ggplot2::theme_gray(base_size = 8) +
+      ggplot2::theme(
+        legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
+        legend.justification.top = "left",
+        legend.justification.left = "bottom",
+        legend.justification.bottom = "right",
+        legend.justification.inside = c(1, 0),
+        legend.box = "horizontal"
+      )
 }
 
 make_model3 <- function(
@@ -1185,7 +1274,7 @@ make_model_model <- function(
     a2 +
     a3 +
     b3 +
-    ggplot2::plot_layout(guides = "collect") &
+    patchwork::plot_layout(guides = "collect") &
     ggplot2::theme(legend.position = "bottom")
 }
 
@@ -1502,7 +1591,7 @@ make_model_model_ukb <- function(
     a2 +
     a3 +
     b3 +
-    ggplot2::plot_layout(guides = "collect") &
+    patchwork::plot_layout(guides = "collect") &
     ggplot2::theme(legend.position = "bottom")
 }
 
@@ -1548,55 +1637,64 @@ make_table_of_studies_without_peaks <- function(study_peaks, dst) {
 }
 
 make_modelroi <- function(data_modelroi_gold_gold_to_study) {
-  prep <- data_modelroi_gold_gold_to_study |>
-    dplyr::filter(model == "RIDGE_CV") |>
-    dplyr::filter(stringr::str_detect(type, "UKB")) |>
+  .data_model_gold_gold_to_study <- data_modelroi_gold_gold_to_study |>
     dplyr::filter(
-      stringr::str_detect(replacement, "False", TRUE) |
-        stringr::str_detect(sim, "gold")
-    ) |>
-    dplyr::filter(stringr::str_detect(type, "UKB_SMALL", TRUE)) |>
-    dplyr::filter(
-      measure %in% c("PMAT24_A_CR", "f.20016.2.0")
+      model == "RIDGE_CV",
+      stringr::str_detect(type, "UKB_SMALL", TRUE),
+      stringr::str_detect(replacement, "False", TRUE) | sim == "gold",
+      stringr::str_detect(type, "UKB")
     ) |>
     dplyr::mutate(
       task = stringr::str_to_lower(task),
-      type = stringr::str_to_lower(type)
+      type = stringr::str_to_lower(type),
+      n_sub = dplyr::case_when(
+        sim == "gold" & stringr::str_detect(measure, "^f.") ~ "ukb",
+        sim == "gold" & stringr::str_detect(measure, "^f.", TRUE) ~ "hcp",
+        TRUE ~ as.character(n_sub)
+      ),
+      n_sub = factor(
+        n_sub,
+        levels = c(
+          "20",
+          "40",
+          "60",
+          "80",
+          "100",
+          "hcp",
+          "1000",
+          "10000",
+          "ukb"
+        ),
+        labels = c("20", "40", "60", "80", "100", "hcp", "1k", "10k", "ukb"),
+        ordered = TRUE
+      )
     )
 
-  gold_a <- prep |> dplyr::filter(sim == "gold")
+  avgs <- .data_model_gold_gold_to_study |>
+    dplyr::summarise(avg = mean(avg), .by = c(task, measure, n_sub)) |>
+    dplyr::mutate(
+      dataset = dplyr::if_else(
+        stringr::str_detect(measure, "^f."),
+        "ukb",
+        "hcpya"
+      )
+    )
 
-  prep |>
-    dplyr::filter(sim == "simulation") |>
+  .data_model_gold_gold_to_study |>
     ggplot2::ggplot(ggplot2::aes(x = n_sub, y = avg)) +
     ggplot2::facet_wrap(~task, scales = "free_x", nrow = 2) +
-    ggplot2::geom_line() +
-    ggplot2::geom_errorbar(
-      ggplot2::aes(ymin = lower, ymax = upper),
-      linewidth = 0.5,
-      width = 0,
-      alpha = 0.5
+    ggplot2::geom_boxplot(ggplot2::aes(fill = type), outliers = FALSE) +
+    ggplot2::geom_line(
+      ggplot2::aes(group = measure, color = dataset),
+      alpha = 0.2,
+      data = avgs
     ) +
-    ggplot2::geom_errorbar(
-      ggplot2::aes(ymin = avg - 2 * sem, ymax = avg + 2 * sem),
-      linewidth = 3,
-      width = 0
+    ggplot2::scale_color_manual(values = c(viridisLite::turbo(4)[3])) +
+    ggplot2::scale_fill_manual(values = c(viridisLite::turbo(4)[3])) +
+    ggplot2::ylab(
+      "Average Rank Correlation"
     ) +
-    ggplot2::geom_point(
-      mapping = ggplot2::aes(x = n_sub, y = avg),
-      data = gold_a,
-      pch = 21,
-      color = "gold",
-      fill = "gold"
-    ) +
-    ggplot2::scale_x_log10("N Sub") +
-    ggplot2::ylab("Average Rank Correlation\nPrediction-Truth (gF)") +
-    ggplot2::scale_color_viridis_d(option = "turbo") +
-    ggplot2::scale_fill_viridis_d(option = "turbo") +
-    ggplot2::guides(
-      colour = ggplot2::guide_legend(position = "inside"),
-    ) +
-    ggplot2::theme_gray(base_size = 8)
+    ggplot2::xlab("N Sub")
 }
 
 make_model_r2 <- function(data_model_gold_gold_to_study_r2) {

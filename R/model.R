@@ -248,8 +248,10 @@ make_data_model_gold_gold_to_study2 <- function(
     dplyr::collect() |>
     dplyr::summarise(
       avg = mean(sig),
-      lower = qbeta(0.025, 1 / 2 + sum(sig), dplyr::n() - sum(sig) + 1 / 2),
-      upper = qbeta(0.975, 1 / 2 + sum(sig), dplyr::n() - sum(sig) + 1 / 2),
+      a = 1 / 2 + sum(sig),
+      b = dplyr::n() - sum(sig) + 1 / 2,
+      lower = qbeta(0.025, a, b),
+      upper = qbeta(0.975, a, b),
       .by = c(n_sub, task, measure, confounds, type, model, replacement)
     ) |>
     dplyr::mutate(sim = "simulation") |>
@@ -330,47 +332,6 @@ do_iccbin <- function(.data) {
 }
 
 
-make_data_model_study_to_study2 <- function(
-  dataset,
-  measures,
-  n_boot = 100,
-  n_workers = 8
-) {
-  arrow::open_dataset(dataset) |>
-    dplyr::distinct(
-      pvalue_rep,
-      measure,
-      task,
-      n_sub,
-      study,
-      confounds,
-      type,
-      model,
-      replacement
-    ) |>
-    dplyr::filter(measure %in% measures, model == "RIDGE_CV") |>
-    na.omit() |>
-    dplyr::summarise(
-      n = dplyr::n(),
-      y = sum(pvalue_rep < 0.05),
-      .by = c(n_sub, task, type, measure, confounds, study, model, replacement)
-    ) |>
-    dplyr::collect() |>
-    dplyr::group_nest(
-      task,
-      measure,
-      confounds,
-      n_sub,
-      type,
-      model,
-      replacement
-    ) |>
-    dplyr::mutate(
-      .estimate = purrr::map_dbl(data, do_iccbin)
-    ) |>
-    dplyr::select(-data)
-}
-
 do_lme_ICC_2wayM <- function(.data) {
   tmp <- .data |>
     tidyr::pivot_longer(-index)
@@ -420,7 +381,6 @@ make_data_model_study_to_study3 <- function(dataset, measures) {
   dplyr::bind_rows(mm)
 }
 
-
 make_data_model_sub_to_sub <- function(features) {
   arrow::open_dataset(features) |>
     dplyr::collect() |>
@@ -440,93 +400,6 @@ make_data_model_sub_to_sub <- function(features) {
     dplyr::select(task, rho, confounds) |>
     tidyr::unnest(rho)
 }
-
-
-make_data_model_gold_gold_to_study_popsize <- function(
-  dataset_gold,
-  dataset,
-  measures
-) {
-  gold <- arrow::open_dataset(dataset_gold) |>
-    na.omit() |>
-    dplyr::distinct(statistic_rep, sub, model, popsize) |>
-    dplyr::collect() |>
-    dplyr::mutate(n_sub = dplyr::n_distinct(sub), .by = c(model, popsize)) |>
-    dplyr::distinct(avg = statistic_rep, n_sub, popsize, model) |>
-    dplyr::mutate(sim = "gold", replacement = "False")
-
-  arrow::open_dataset(dataset) |>
-    dplyr::distinct(statistic_rep, n_sub, study, popsize, model, replacement) |>
-    dplyr::collect() |>
-    na.omit() |>
-    dplyr::summarise(
-      avg = mean(statistic_rep),
-      sem = sd(statistic_rep) / sqrt(dplyr::n()),
-      lower = quantile(statistic_rep, 0.025),
-      upper = quantile(statistic_rep, 0.975),
-      .by = c(n_sub, model, replacement, popsize)
-    ) |>
-    dplyr::mutate(sim = "simulation") |>
-    dplyr::bind_rows(gold) |>
-    dplyr::filter(measure %in% measures)
-}
-
-make_data_model_study_to_study_popsize <- function(dataset, measures) {
-  arrow::open_dataset(dataset) |>
-    na.omit() |>
-    dplyr::select(sub, y_hat, study, model, replacement, popsize) |>
-    dplyr::collect() |>
-    dplyr::group_nest(model, replacement, popsize) |>
-    dplyr::mutate(
-      rex = purrr::map(
-        data,
-        ~ .x |>
-          tidyr::pivot_wider(names_from = study, values_from = y_hat) |>
-          dplyr::select(-sub) |>
-          irr::icc(model = "t", type = "a")
-      ),
-      icc_agreement = purrr::map_dbl(rex, purrr::pluck, "value"),
-      lower_agreement = purrr::map_dbl(rex, purrr::pluck, "lbound"),
-      upper_agreement = purrr::map_dbl(rex, purrr::pluck, "ubound"),
-      rex = purrr::map(
-        data,
-        ~ .x |>
-          tidyr::pivot_wider(names_from = study, values_from = y_hat) |>
-          dplyr::select(-sub) |>
-          irr::icc(model = "t", type = "consistency")
-      ),
-      icc_consistency = purrr::map_dbl(rex, purrr::pluck, "value"),
-      lower_consistency = purrr::map_dbl(rex, purrr::pluck, "lbound"),
-      upper_consistency = purrr::map_dbl(rex, purrr::pluck, "ubound"),
-      rex = purrr::map(
-        data,
-        ~ ReX::lme_ICC_2wayM(.x$y_hat, .x$sub, .x$study)
-      ),
-      sigma2_b = purrr::map_dbl(
-        rex,
-        ~ .x[1, "sigma2_b"]
-      ),
-      sigma2_w = purrr::map_dbl(
-        rex,
-        ~ .x[1, "sigma2_w"]
-      ),
-      var.data = purrr::map_dbl(
-        rex,
-        ~ .x[1, "var.data"]
-      )
-    ) |>
-    dplyr::select(-data, -rex) |>
-    tidyr::pivot_longer(
-      tidyselect::ends_with(
-        c("agreement", "consistency")
-      ),
-      names_to = c("name", "method"),
-      names_sep = "_"
-    ) |>
-    tidyr::pivot_wider() |>
-    dplyr::filter(measure %in% measures)
-}
-
 
 make_data_model_gold_gold_to_study_r2 <- function(
   dataset_gold,
