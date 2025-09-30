@@ -1,0 +1,25 @@
+#!/bin/bash
+
+main (){
+    local flag=$1
+    local N=$2
+
+    local files
+    # shellcheck disable=SC2207
+    files=($(head -n "${N}" tools/randomise_manual | tail -n1))
+    
+    fslmerge -t data-raw/glm_manual/"${flag}"_copes.nii.gz "${files[@]}"
+    randomise \
+        -i data-raw/glm_manual/"${flag}"_copes.nii.gz \
+        -o data-raw/glm_manual/"${flag}" \
+        -1 -n 1 -R --glm_output --seed=0
+}
+export -f main
+
+main nsub-374_iter-0_task-EMOTION_cope-3 1
+main nsub-373_iter-0_task-LANGUAGE_cope-3 2
+main nsub-371_iter-0_task-RELATIONAL_cope-3 3
+main nsub-375_iter-0_task-SOCIAL_cope-3 4
+main nsub-378_iter-0_task-GAMBLING_cope-6 5
+main nsub-379_iter-0_task-MOTOR_cope-7 6
+main nsub-379_iter-0_task-WM_cope-11 7

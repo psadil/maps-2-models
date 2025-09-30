@@ -34,6 +34,11 @@ controller <- crew::crew_controller_local(
   workers = as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", 1))
 )
 
+controller_small <- crew::crew_controller_local(
+  name = "small",
+  workers = 1
+)
+
 # controller <- crew.cluster::crew_controller_slurm(
 #   name = "slurm",
 #   workers = 5,
@@ -51,7 +56,7 @@ targets::tar_option_set(
   format = "qs",
   storage = "worker",
   packages = c("oro.nifti"),
-  controller = controller,
+  controller = crew::crew_controller_group(controller, controller_small),
   workspace_on_error = FALSE
 )
 
@@ -255,6 +260,15 @@ list(
     make_data_topo_gold_to_study2(glm2, glm_pop2),
     format = "parquet"
   ),
+  tar_target(
+    data_topo_gold_to_study_bynetwork,
+    make_data_topo_gold_to_study_bynetwork(
+      glm2 = glm2,
+      glm_pop2 = glm_pop2,
+      at = at
+    ),
+    format = "parquet"
+  ),
   tarchetypes::tar_group_by(
     data_topo_study_to_study0,
     glm2,
@@ -299,7 +313,7 @@ list(
   ),
   tar_target(
     rois_all,
-    test_roi(roi_avg_all, hcp_samples_all),
+    test_roi(dplyr::filter(roi_avg_all, n_parcels == 400), hcp_samples_all),
     pattern = map(hcp_samples_all),
     format = "parquet"
   ),
@@ -328,8 +342,7 @@ list(
   tar_target(
     data_roi_study_to_study,
     make_data_roi_study_to_study(
-      rois_tested = dplyr::bind_rows(rois, rois_ukb),
-      gold_tested = dplyr::bind_rows(rois_pop, rois_pop_ukb)
+      rois_tested = dplyr::bind_rows(rois, rois_ukb)
     ),
     format = "parquet"
   ),
@@ -339,7 +352,10 @@ list(
       rois_tested = dplyr::bind_rows(rois, rois_ukb),
       n_workers = 8
     ),
-    format = "parquet"
+    format = "parquet",
+    resources = targets::tar_resources(
+      crew = targets::tar_resources_crew(controller = "small")
+    )
   ),
   tar_target(
     data_peak_study_to_gold,
@@ -416,19 +432,15 @@ list(
     format = "file"
   ),
   tar_target(
-    roi2,
-    make_roi2(data_roi_study_to_gold2, data_roi_study_to_study2),
-    packages = c("ggplot2", "patchwork")
-  ),
-  tar_target(
     fig_roi2,
     make_tikz(
-      p = roi2,
+      p = make_roi2(data_roi_study_to_gold2, data_roi_study_to_study2),
       file = "analyses/figures/roi2.tex",
       width = 7,
       height = 7.5
     ),
-    format = "file"
+    format = "file",
+    packages = c("patchwork")
   ),
   tar_target(
     fig_prop_active_most_active_roi,
@@ -725,5 +737,69 @@ list(
     ),
     format = "file",
     packages = c("patchwork")
+  ),
+  tar_target(
+    top_ten_regions,
+    write_regions(
+      rois_pop,
+      rois_pop_ukb,
+      dst = "analyses/tables/top_ten_regions.tsv"
+    ),
+    format = "file"
+  ),
+  tar_target(
+    performance_file,
+    write_model_performance(
+      data_model_gold_gold_to_study,
+      data_model_gold_gold_to_study_r2,
+      dst = "analyses/tables/mm_scores.tsv"
+    ),
+    format = "file"
+  ),
+  tar_target(
+    top_ten_peaks,
+    write_peaks(
+      gold_tested = dplyr::bind_rows(rois_pop, rois_pop_ukb),
+      dst = "analyses/tables/top_ten_peaks.tsv"
+    ),
+    format = "file"
+  ),
+  tar_target(
+    fig_peak_bysize,
+    make_tikz(
+      p = make_peak_bysize(study_to_gold_distances, glm_pop2),
+      file = "analyses/figures/peak-bysize.tex",
+      width = 5,
+      height = 5
+    ),
+    packages = "patchwork"
+  ),
+  tar_target(
+    fig_peak_bynetwork,
+    make_tikz(
+      p = make_peak_bynetwork(study_to_gold_distances, at, glm_pop2),
+      file = "analyses/figures/peak-bynetwork.tex",
+      width = 5,
+      height = 5
+    ),
+    packages = "patchwork"
+  ),
+  tar_target(
+    fig_topo_bynetwork,
+    make_tikz(
+      p = make_topo_bynetwork(
+        data_topo_gold_to_study_bynetwork,
+        glm_pop2,
+        at = at
+      ),
+      file = "analyses/figures/topo-bynetwork.tex",
+      width = 5,
+      height = 6
+    ),
+    packages = "patchwork"
+  ),
+  tar_target(
+    peak_avg_bysize,
+    make_peak_avg_bysize(study_to_gold_distances, glm_pop2)
   )
 )

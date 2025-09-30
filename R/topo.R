@@ -290,3 +290,83 @@ make_data_topo_study_to_study <- function(glm, times = 2000) {
     ) |>
     dplyr::select(-fit, -data)
 }
+
+
+.cor_one_study_bynetwork <- function(
+  glm.study,
+  glm.gold,
+  at
+) {
+  dplyr::bind_rows(
+    list(
+      study = arrow::read_parquet(glm.study),
+      gold = arrow::read_parquet(glm.gold)
+    ),
+    .id = "sim"
+  ) |>
+    dplyr::mutate(cohens_d = pe / sigma) |>
+    dplyr::select(-tidyselect::any_of(c("z", "pe", "sigma", "n_sub"))) |>
+    tidyr::pivot_wider(names_from = sim, values_from = cohens_d) |>
+    dplyr::filter(!is.na(study), !is.na(gold)) |>
+    dplyr::left_join(at, by = dplyr::join_by(index)) |>
+    dplyr::summarise(
+      rho = cor(study, gold, method = "spearman"),
+      .by = `Network Name`
+    )
+}
+
+make_data_topo_gold_to_study_bynetwork <- function(glm2, glm_pop2, at) {
+  mapping <- to_tbl(MNITemplate::getMNIPath("Brain", res = "2mm")) |>
+    mask() |>
+    mask_gray() |>
+    mask_atlas() |>
+    dplyr::mutate(index = 1:dplyr::n()) |>
+    dplyr::select(-value)
+
+  at2 <- mapping |>
+    dplyr::left_join(at, by = dplyr::join_by(x, y, z)) |>
+    dplyr::mutate(
+      `Network Name` = dplyr::if_else(
+        is.na(`Network Name`) & !is.na(label),
+        "subcortical",
+        `Network Name`
+      )
+    ) |>
+    dplyr::select(`Network Name`, index) |>
+    na.omit()
+
+  dplyr::left_join(
+    glm2,
+    dplyr::select(glm_pop2, -iter, -n_sub),
+    by = dplyr::join_by(Task, CopeNumber, type),
+    suffix = c(".study", ".gold")
+  ) |>
+    dplyr::filter(type == "VOL") |>
+    dplyr::mutate(dplyr::across(
+      tidyselect::starts_with("glm."),
+      ~ stringr::str_remove(.x, "/dcl01/smart/data/psadil/meta/")
+    )) |>
+    dplyr::mutate(
+      rho = purrr::map2(
+        glm.study,
+        glm.gold,
+        ~ .cor_one_study_bynetwork(.x, .y, at = at2),
+      )
+    ) |>
+    dplyr::select(-tidyselect::starts_with("glm")) |>
+    tidyr::unnest(rho) |>
+    dplyr::mutate(
+      Task = stringr::str_to_lower(Task),
+      `N Sub` = glue::glue("N Sub: {n_sub}"),
+      `N Sub` = factor(
+        `N Sub`,
+        levels = c(
+          "N Sub: 20",
+          "N Sub: 40",
+          "N Sub: 60",
+          "N Sub: 80",
+          "N Sub: 100"
+        )
+      )
+    )
+}

@@ -271,24 +271,11 @@ make_data_roi_study_to_study2 <- function(
 
 make_data_roi_study_to_study <- function(
   rois_tested,
-  gold_tested,
   n_boot = 100,
   n_workers = 8,
   type = "bca"
 ) {
-  gold_most <- gold_tested |>
-    dplyr::mutate(
-      r = dplyr::row_number(dplyr::desc(abs(statistic))),
-      .by = c(Task, n_parcels, type)
-    ) |>
-    dplyr::filter(r < 11) |>
-    dplyr::select(Task, n_parcels, label, type)
-
   rois_tested |>
-    dplyr::semi_join(
-      gold_most,
-      by = dplyr::join_by(Task, n_parcels, label, type)
-    ) |>
     dplyr::select(Task, n_parcels, n_sub, iter, statistic, label, type) |>
     dplyr::group_nest(Task, n_parcels, n_sub, type) |>
     dplyr::mutate(

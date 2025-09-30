@@ -1,0 +1,14 @@
+#!/bin/bash
+#SBATCH -J act_preds_ukb
+#SBATCH --output logs/act-preds_ukb_%a.log
+#SBATCH -t 24:00:00
+#SBATCH --mem=16G
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+
+source ~/.bashrc
+
+mamba activate act_preds2
+
+python entrypoint.py --n-subs 20 40 60 80 100 1000 10000 --no-confounds $PWD cpm-schaefer.parquet "${SLURM_ARRAY_TASK_ID}" UKB EMOTION

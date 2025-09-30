@@ -125,7 +125,7 @@ make_roi2 <- function(data_roi_study_to_gold, data_roi_study_to_study) {
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
     ggplot2::theme_gray(base_size = 10) +
       ggplot2::theme(
-        legend.margin = margin(0, 0, 0, 0), # turned off for alignment
+        legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
         legend.justification.top = "left",
         legend.justification.left = "bottom",
         legend.justification.bottom = "right",
@@ -431,27 +431,39 @@ make_peaks_reliability <- function(
 }
 
 
-make_peak_bysize <- function(space, data_topo_gold) {
-  topo_gold <- data_topo_gold |>
-    dplyr::mutate(d = cope / sigma * correct_d(n_sub)) |>
-    dplyr::select(Task, x, y, z, hedges_g = d)
+make_peak_bysize <- function(study_to_gold_distances, glm_pop2) {
+  peaks <- study_to_gold_distances |>
+    dplyr::filter(type == "VOL") |>
+    dplyr::summarise(
+      avg_d = mean(d),
+      .by = c(type, Task, n_sub, x, y, z, threshold)
+    )
 
-  space |>
-    dplyr::filter(!is.na(d)) |>
+  mapping <- to_tbl(MNITemplate::getMNIPath("Brain", res = "2mm")) |>
+    mask() |>
+    mask_gray() |>
+    mask_atlas() |>
+    dplyr::mutate(index = 1:dplyr::n()) |>
+    dplyr::select(-value)
+
+  d <- glm_pop2 |>
+    dplyr::filter(type == "VOL") |>
     dplyr::mutate(
-      `Network Name` = dplyr::if_else(
-        is.na(`Network Name`) & !is.na(label),
-        "subcortical",
-        `Network Name`
+      glm = stringr::str_remove(glm, "/dcl01/smart/data/psadil/meta/"),
+      data = purrr::map(
+        glm,
+        ~ duckplyr::read_parquet_duckdb(.x) |> dplyr::collect()
       )
     ) |>
-    dplyr::filter(!is.na(`Network Name`)) |>
-    dplyr::summarise(
-      d = mean(d, na.rm = TRUE),
-      .by = c(n_sub, corrp_thresh, Task, `Network Name`, x, y, z)
-    ) |>
-    dplyr::left_join(topo_gold, by = dplyr::join_by(Task, x, y, z)) |>
+    dplyr::select(-glm) |>
+    tidyr::unnest(data) |>
+    dplyr::mutate(g = abs(pe) / sigma * correct_d(n_sub)) |>
+    dplyr::select(-z, -pe, -sigma, -n_sub) |>
+    dplyr::left_join(mapping, by = dplyr::join_by(index)) |>
+    dplyr::full_join(peaks, by = dplyr::join_by(type, Task, x, y, z)) |>
+    na.omit() |>
     dplyr::mutate(
+      Task = stringr::str_to_lower(Task),
       `N Sub` = glue::glue("N Sub: {n_sub}"),
       `N Sub` = factor(
         `N Sub`,
@@ -463,74 +475,157 @@ make_peak_bysize <- function(space, data_topo_gold) {
           "N Sub: 100"
         )
       )
-    ) |>
-    ggplot2::ggplot(ggplot2::aes(y = d, x = hedges_g)) +
-    scattermore::geom_scattermore(
-      pointsize = 5,
-      alpha = 0.25
-    ) +
+    )
+
+  a <- d |>
+    dplyr::filter(threshold == 0) |>
+    ggplot2::ggplot(ggplot2::aes(x = g, y = avg_d)) +
     ggplot2::facet_grid(`N Sub` ~ Task) +
+    scattermore::geom_scattermore(pointsize = 5, alpha = 0.5) +
+    ggplot2::ylab("avg dist(Gold Std., Study) (mm)") +
     ggplot2::scale_x_continuous(
       "Gold Standard Peak Cohen's d",
       breaks = c(0, 1),
       labels = c(0, 1)
     ) +
-    ggplot2::scale_y_log10("avg dist(Gold Standard Peak, Study Peak) (mm)") +
-    ggplot2::theme_gray(base_size = 8)
+    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::ggtitle("Unthresholded")
+
+  b <- d |>
+    dplyr::filter(threshold > 0) |>
+    ggplot2::ggplot(ggplot2::aes(x = g, y = avg_d)) +
+    ggplot2::facet_grid(`N Sub` ~ Task) +
+    scattermore::geom_scattermore(pointsize = 5, alpha = 0.5) +
+    ggplot2::ylab("avg dist(Gold Std., Study) (mm)") +
+    ggplot2::scale_x_continuous(
+      "Gold Standard Peak Cohen's d",
+      breaks = c(0, 1),
+      labels = c(0, 1)
+    ) +
+    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::ggtitle("Thresholded")
+
+  a +
+    b +
+    patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") +
+    patchwork::plot_layout(nrow = 2) &
+    ggplot2::theme(
+      legend.position = "bottom"
+    )
 }
 
-make_peak_bynetwork <- function(space, data_topo_gold) {
-  topo_gold <- data_topo_gold |>
-    dplyr::mutate(d = cope / sigma * correct_d(n_sub)) |>
-    dplyr::select(Task, x, y, z, hedges_g = d)
-
-  space |>
-    dplyr::filter(!is.na(d)) |>
-    dplyr::mutate(
-      `Network Name` = dplyr::if_else(
-        is.na(`Network Name`) & !is.na(label),
-        "subcortical",
-        `Network Name`
-      )
-    ) |>
-    dplyr::filter(!is.na(`Network Name`)) |>
-    dplyr::left_join(topo_gold, by = dplyr::join_by(Task, x, y, z)) |>
-    dplyr::summarise(
-      d = mean(d, na.rm = TRUE),
-      hedges_g = mean(hedges_g, na.rm = TRUE),
-      .by = c(n_sub, corrp_thresh, Task, `Network Name`, iter)
-    ) |>
-    dplyr::mutate(
-      `N Sub` = glue::glue("N Sub: {n_sub}"),
-      `N Sub` = factor(
-        `N Sub`,
-        levels = c(
-          "N Sub: 20",
-          "N Sub: 40",
-          "N Sub: 60",
-          "N Sub: 80",
-          "N Sub: 100"
-        )
-      )
-    ) |>
-    ggplot2::ggplot(ggplot2::aes(y = `Network Name`, x = d, color = hedges_g)) +
-    ggplot2::geom_boxplot(outlier.shape = NA) +
+.make_fig_bynetwork <- function(.d) {
+  .d |>
+    ggplot2::ggplot(ggplot2::aes(y = `Network Name`, x = avg_d, color = g)) +
+    ggplot2::geom_boxplot(outliers = FALSE) +
     scattermore::geom_scattermore(
       pointsize = 5,
-      position = position_jitter(width = 0),
+      position = ggplot2::position_jitter(width = 0),
       alpha = 0.5
     ) +
     ggplot2::facet_grid(`N Sub` ~ Task) +
     ggplot2::scale_color_viridis_c(
       option = "turbo",
       guide = ggplot2::guide_colorbar("Cohen's d"),
-      limits = c(0, 1.25)
+      limits = c(0, NA)
     ) +
     ggplot2::ylab("Network") +
     ggplot2::scale_x_continuous(
       "avg dist(Gold Standard Peak, Study Peak) (mm)"
     ) +
     ggplot2::theme_gray(base_size = 8)
+}
+
+
+make_peak_bynetwork <- function(study_to_gold_distances, at, glm_pop2) {
+  peaks <- study_to_gold_distances |>
+    dplyr::filter(type == "VOL") |>
+    dplyr::left_join(at, by = dplyr::join_by(x, y, z)) |>
+    dplyr::mutate(
+      `Network Name` = dplyr::if_else(
+        is.na(`Network Name`) & !is.na(label),
+        "subcortical",
+        `Network Name`
+      )
+    ) |>
+    dplyr::filter(!is.na(`Network Name`)) |>
+    dplyr::summarise(
+      avg_d = mean(d),
+      .by = c(type, Task, n_sub, `Network Name`, threshold, iter)
+    )
+
+  mapping <- to_tbl(MNITemplate::getMNIPath("Brain", res = "2mm")) |>
+    mask() |>
+    mask_gray() |>
+    mask_atlas() |>
+    dplyr::mutate(index = 1:dplyr::n()) |>
+    dplyr::select(-value)
+
+  eff_size <- glm_pop2 |>
+    dplyr::filter(type == "VOL") |>
+    dplyr::mutate(
+      glm = stringr::str_remove(glm, "/dcl01/smart/data/psadil/meta/"),
+      data = purrr::map(
+        glm,
+        ~ duckplyr::read_parquet_duckdb(.x) |> dplyr::collect()
+      )
+    ) |>
+    dplyr::select(-glm) |>
+    tidyr::unnest(data) |>
+    dplyr::mutate(g = abs(pe) / sigma * correct_d(n_sub)) |>
+    dplyr::select(-z, -pe, -sigma, -n_sub) |>
+    dplyr::left_join(mapping, by = dplyr::join_by(index)) |>
+    dplyr::left_join(at, by = dplyr::join_by(x, y, z)) |>
+    dplyr::mutate(
+      `Network Name` = dplyr::if_else(
+        is.na(`Network Name`) & !is.na(label),
+        "subcortical",
+        `Network Name`
+      )
+    ) |>
+    dplyr::filter(!is.na(`Network Name`)) |>
+    dplyr::summarise(
+      g = mean(g),
+      .by = c(type, Task, `Network Name`)
+    )
+
+  d <- peaks |>
+    dplyr::left_join(
+      eff_size,
+      by = dplyr::join_by(type, Task, `Network Name`)
+    ) |>
+    dplyr::mutate(
+      Task = stringr::str_to_lower(Task),
+      `N Sub` = glue::glue("N Sub: {n_sub}"),
+      `N Sub` = factor(
+        `N Sub`,
+        levels = c(
+          "N Sub: 20",
+          "N Sub: 40",
+          "N Sub: 60",
+          "N Sub: 80",
+          "N Sub: 100"
+        )
+      )
+    )
+
+  a <- d |>
+    dplyr::filter(threshold == 0) |>
+    .make_fig_bynetwork() +
+    ggplot2::ggtitle("Unthresholded")
+
+  b <- d |>
+    dplyr::filter(threshold > 0) |>
+    .make_fig_bynetwork() +
+    ggplot2::ggtitle("Thresholded")
+
+  a +
+    b +
+    patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") +
+    patchwork::plot_layout(guides = "collect", nrow = 2) &
+    ggplot2::theme(
+      legend.position = "bottom"
+    )
 }
 
 make_topo <- function(data_topo_gold_to_study, data_topo_study_to_study) {
@@ -611,49 +706,60 @@ make_prop_effect_size <- function(glm_pop2) {
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5))
 }
 
-make_topo_bynetwork <- function(pop_cor_region, data_topo_gold, at) {
-  roi_gold <- data_topo_gold |>
-    dplyr::left_join(at, by = dplyr::join_by(x, y, z)) |>
-    dplyr::filter(!is.na(label)) |>
+make_topo_bynetwork <- function(
+  data_topo_gold_to_study_bynetwork,
+  glm_pop2,
+  at
+) {
+  mapping <- to_tbl(MNITemplate::getMNIPath("Brain", res = "2mm")) |>
+    mask() |>
+    mask_gray() |>
+    mask_atlas() |>
+    dplyr::mutate(index = 1:dplyr::n()) |>
+    dplyr::select(-value)
+
+  eff_size <- glm_pop2 |>
+    dplyr::filter(type == "VOL") |>
     dplyr::mutate(
-      Network = dplyr::if_else(
+      glm = stringr::str_remove(glm, "/dcl01/smart/data/psadil/meta/"),
+      data = purrr::map(
+        glm,
+        ~ duckplyr::read_parquet_duckdb(.x) |> dplyr::collect()
+      )
+    ) |>
+    dplyr::select(-glm) |>
+    tidyr::unnest(data) |>
+    dplyr::mutate(g = abs(pe) / sigma * correct_d(n_sub)) |>
+    dplyr::select(-z, -pe, -sigma, -n_sub) |>
+    dplyr::left_join(mapping, by = dplyr::join_by(index)) |>
+    dplyr::left_join(at, by = dplyr::join_by(x, y, z)) |>
+    dplyr::mutate(
+      `Network Name` = dplyr::if_else(
         is.na(`Network Name`) & !is.na(label),
         "subcortical",
         `Network Name`
-      )
+      ),
+      Task = stringr::str_to_lower(Task)
     ) |>
+    dplyr::filter(!is.na(`Network Name`)) |>
     dplyr::summarise(
-      hedges_g = mean(cope / sigma * correct_d(n_sub)),
-      .by = c(Task, Network)
+      g = mean(g),
+      .by = c(type, Task, `Network Name`)
     )
 
-  pop_cor_region |>
-    dplyr::mutate(
-      f = atanh(rho),
-      Network = dplyr::if_else(
-        is.na(`Network Name`) & !is.na(label),
-        "subcortical",
-        `Network Name`
-      )
-    ) |>
-    dplyr::filter(!is.na(rho) & is.finite(f)) |>
-    dplyr::group_by(Task, n_sub, ContrastName, method, Network, iter) |>
-    dplyr::summarise(
-      f = mean(f),
-      N = dplyr::n(),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(
-      rr = tanh(f),
-      `N Sub` = factor(n_sub)
-    ) |>
-    dplyr::left_join(roi_gold, by = dplyr::join_by(Task, Network)) |>
-    ggplot2::ggplot(ggplot2::aes(x = rr, y = Network, color = hedges_g)) +
+  data_topo_gold_to_study_bynetwork |>
+    dplyr::left_join(eff_size) |>
+    ggplot2::ggplot(ggplot2::aes(
+      x = rho,
+      y = `Network Name`,
+      color = g
+    )) +
     ggplot2::facet_grid(`N Sub` ~ Task) +
     ggplot2::geom_boxplot(outlier.alpha = 0.25) +
     ggplot2::scale_color_viridis_c(
       option = "turbo",
-      guide = ggplot2::guide_colorbar("Cohen's d")
+      guide = ggplot2::guide_colorbar("Cohen's d"),
+      limits = c(0, NA),
     ) +
     ggplot2::scale_x_continuous(
       "Rank Correlation with Reference",
@@ -1779,4 +1885,183 @@ make_model_r2 <- function(data_model_gold_gold_to_study_r2) {
       legend.justification.inside = c(1, 0),
       legend.location = "plot"
     )
+}
+
+write_regions <- function(
+  rois_pop,
+  rois_pop_ukb,
+  dst = "analyses/tables/top_ten_regions.tsv"
+) {
+  dplyr::bind_rows(rois_pop, rois_pop_ukb) |>
+    dplyr::filter(n_parcels == 400) |>
+    dplyr::mutate(
+      r = dplyr::row_number(dplyr::desc(abs(estimate))),
+      .by = c(Task, n_parcels, type)
+    ) |>
+    dplyr::filter(r < 11) |>
+    dplyr::mutate(estimate = statistic / sqrt(parameter)) |>
+    dplyr::select(type, Task, label, rank = r, estimate) |>
+    dplyr::arrange(type, Task, rank) |>
+    readr::write_tsv(dst)
+  dst
+}
+
+write_model_performance <- function(
+  data_model_gold_gold_to_study,
+  data_model_gold_gold_to_study_r2,
+  dst = "analyses/tables/measures.tsv"
+) {
+  cors <- data_model_gold_gold_to_study |>
+    dplyr::filter(
+      replacement == "True",
+      confounds == "True" | type == "UKB",
+      model == "RIDGE_CV"
+    ) |>
+    dplyr::select(type, task, n_sub, measure, avg)
+
+  r2 <- data_model_gold_gold_to_study |>
+    dplyr::filter(
+      replacement == "True",
+      confounds == "True" | type == "UKB",
+      model == "RIDGE_CV"
+    ) |>
+    dplyr::select(type, task, n_sub, measure, avg)
+
+  dplyr::bind_rows(list(cor = cors, r2 = r2), .id = "m") |>
+    tidyr::pivot_wider(names_from = m, values_from = avg) |>
+    dplyr::mutate(task = stringr::str_to_lower(task)) |>
+    dplyr::arrange(type, measure, task, n_sub) |>
+    readr::write_tsv(dst)
+  dst
+}
+
+write_peaks <- function(
+  gold_tested,
+  n_peaks = 10,
+  dst = "analyses/tables/top_ten_peaks.tsv"
+) {
+  gold_tested |>
+    dplyr::filter(n_parcels == 400) |>
+    dplyr::mutate(d = abs(statistic) / sqrt(parameter)) |>
+    dplyr::select(Task, n_parcels, label, type, d) |>
+    dplyr::slice_max(
+      order_by = d,
+      by = c(type, Task, label),
+      n = 1,
+      with_ties = FALSE
+    ) |>
+    dplyr::slice_max(
+      order_by = d,
+      by = c(type, Task),
+      n = n_peaks,
+      with_ties = FALSE
+    ) |>
+    dplyr::mutate(
+      rank = rank(abs(d) * -1, ties.method = "first"),
+      .by = c(type, Task)
+    ) |>
+    dplyr::arrange(type, Task, rank, d) |>
+    readr::write_tsv(dst)
+  dst
+}
+
+make_peak_avg_bysize <- function(study_to_gold_distances, glm_pop2) {
+  peaks <- study_to_gold_distances |>
+    dplyr::filter(type == "VOL") |>
+    dplyr::summarise(
+      avg_d = mean(d),
+      .by = c(type, Task, n_sub, x, y, z, threshold)
+    )
+
+  mapping <- to_tbl(MNITemplate::getMNIPath("Brain", res = "2mm")) |>
+    mask() |>
+    mask_gray() |>
+    mask_atlas() |>
+    dplyr::mutate(index = 1:dplyr::n()) |>
+    dplyr::select(-value)
+
+  glm_pop2 |>
+    dplyr::filter(type == "VOL") |>
+    dplyr::mutate(
+      glm = stringr::str_remove(glm, "/dcl01/smart/data/psadil/meta/"),
+      data = purrr::map(
+        glm,
+        ~ duckplyr::read_parquet_duckdb(.x) |> dplyr::collect()
+      )
+    ) |>
+    dplyr::select(-glm) |>
+    tidyr::unnest(data) |>
+    dplyr::mutate(g = abs(pe) / sigma * correct_d(n_sub)) |>
+    dplyr::select(-z, -pe, -sigma, -n_sub) |>
+    dplyr::left_join(mapping, by = dplyr::join_by(index)) |>
+    dplyr::full_join(peaks, by = dplyr::join_by(type, Task, x, y, z)) |>
+    na.omit() |>
+    dplyr::mutate(g = cut(g, breaks = c(0, 0.1, .3, .5, Inf))) |>
+    dplyr::summarise(avg_d = mean(avg_d), .by = c(g, threshold))
+}
+
+
+make_peak_avg_bynetwork <- function(study_to_gold_distances, glm_pop2, at) {
+  peaks <- study_to_gold_distances |>
+    dplyr::filter(type == "VOL") |>
+    dplyr::left_join(at, by = dplyr::join_by(x, y, z)) |>
+    dplyr::mutate(
+      `Network Name` = dplyr::if_else(
+        is.na(`Network Name`) & !is.na(label),
+        "subcortical",
+        `Network Name`
+      )
+    ) |>
+    dplyr::filter(!is.na(`Network Name`)) |>
+    dplyr::summarise(
+      avg_d = mean(d),
+      .by = c(type, Task, n_sub, `Network Name`, threshold, iter)
+    )
+
+  mapping <- to_tbl(MNITemplate::getMNIPath("Brain", res = "2mm")) |>
+    mask() |>
+    mask_gray() |>
+    mask_atlas() |>
+    dplyr::mutate(index = 1:dplyr::n()) |>
+    dplyr::select(-value)
+
+  eff_size <- glm_pop2 |>
+    dplyr::filter(type == "VOL") |>
+    dplyr::mutate(
+      glm = stringr::str_remove(glm, "/dcl01/smart/data/psadil/meta/"),
+      data = purrr::map(
+        glm,
+        ~ duckplyr::read_parquet_duckdb(.x) |> dplyr::collect()
+      )
+    ) |>
+    dplyr::select(-glm) |>
+    tidyr::unnest(data) |>
+    dplyr::mutate(g = abs(pe) / sigma * correct_d(n_sub)) |>
+    dplyr::select(-z, -pe, -sigma, -n_sub) |>
+    dplyr::left_join(mapping, by = dplyr::join_by(index)) |>
+    dplyr::left_join(at, by = dplyr::join_by(x, y, z)) |>
+    dplyr::mutate(
+      `Network Name` = dplyr::if_else(
+        is.na(`Network Name`) & !is.na(label),
+        "subcortical",
+        `Network Name`
+      )
+    ) |>
+    dplyr::filter(!is.na(`Network Name`)) |>
+    dplyr::summarise(
+      g = mean(g),
+      .by = c(type, Task, `Network Name`)
+    )
+
+  peaks |>
+    dplyr::left_join(
+      eff_size,
+      by = dplyr::join_by(type, Task, `Network Name`)
+    ) |>
+    dplyr::summarise(
+      avg_d = mean(avg_d),
+      g = unique(g),
+      .by = c(type, Task, n_sub, `Network Name`, threshold)
+    ) |>
+    dplyr::filter(`Network Name` == "somatomotor", threshold > 0)
 }

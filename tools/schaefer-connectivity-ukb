@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH -J ukb-schaefer
+#SBATCH --array=1-10
+#SBATCH --output ukb-schaefer_%a.log
+#SBATCH -t 0:30:00
+#SBATCH --mem=24G
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+
+source ~/.bashrc
+
+mamba activate act_preds
+
+python schaefer-connectivity_ukb.py "${SLURM_ARRAY_TASK_ID}" --confounds
+
+python schaefer-connectivity_ukb.py "${SLURM_ARRAY_TASK_ID}" --no-confounds
+

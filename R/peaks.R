@@ -311,20 +311,6 @@ make_data_peak_study_to_study <- function(
     dplyr::mutate(dplyr::across(c(x, y), as.character))
 }
 
-make_peaks_gold_table <- function(data_peak_study_to_gold, dst) {
-  data_peak_study_to_gold |>
-    dplyr::filter(n_parcels == 400) |>
-    dplyr::distinct(type, Task, label, rank) |>
-    dplyr::arrange(type, Task, rank) |>
-    dplyr::mutate(label = stringr::str_remove(label, "7Networks_")) |>
-    dplyr::mutate(Task = stringr::str_to_lower(Task)) |>
-    gt::gt() |>
-    gt::sub_missing() |>
-    gt::as_latex() |>
-    as.character() |>
-    readr::write_lines(dst)
-}
-
 
 make_peaks_by_fwe <- function(gold_peaks, maxes) {
   augmented <- augment_distance2(maxes = maxes, gold_peaks = gold_peaks)
@@ -427,7 +413,10 @@ make_ecdf_peak_reliability <- function(data_peak_study_to_study) {
     dplyr::mutate(f = purrr::map(data, ~ ecdf(.x$d))) |>
     dplyr::select(-data) |>
     tidyr::crossing(q = seq(0, 1, length.out = 100)) |>
-    dplyr::mutate(d = purrr::map2_dbl(f, q, ~ quantile(.x, .y))) |>
+    dplyr::mutate(
+      d = purrr::map2_dbl(f, q, ~ quantile(.x, .y)),
+      Task = stringr::str_to_lower(Task)
+    ) |>
     dplyr::select(-f) |>
     tidyr::pivot_wider(names_from = type, values_from = d)
 
@@ -436,19 +425,22 @@ make_ecdf_peak_reliability <- function(data_peak_study_to_study) {
     ggplot2::ggplot(ggplot2::aes(y = UKB, x = VOL)) +
     ggplot2::geom_abline() +
     ggplot2::geom_point(ggplot2::aes(color = n_sub), alpha = 0.5) +
-    ggplot2::coord_cartesian()
+    ggplot2::coord_cartesian() +
+    ggplot2::labs(color = "N Sub")
 
   b <- comps |>
     ggplot2::ggplot(ggplot2::aes(y = MSMALL, x = VOL)) +
     ggplot2::geom_abline() +
     ggplot2::geom_point(ggplot2::aes(color = n_sub), alpha = 0.5) +
-    ggplot2::facet_wrap(~Task, nrow = 2)
+    ggplot2::facet_wrap(~Task, nrow = 2) +
+    ggplot2::labs(color = "N Sub")
 
   cc <- comps |>
     ggplot2::ggplot(ggplot2::aes(y = MSMALL, x = SURFACE), alpha = 0.5) +
     ggplot2::geom_abline() +
     ggplot2::geom_point(ggplot2::aes(color = n_sub), alpha = 0.5) +
-    ggplot2::facet_wrap(~Task, nrow = 2)
+    ggplot2::facet_wrap(~Task, nrow = 2) +
+    ggplot2::labs(color = "N Sub")
 
   a +
     b +
