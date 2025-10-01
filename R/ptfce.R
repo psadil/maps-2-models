@@ -65,6 +65,15 @@ get_active_ptfce <- function(q) {
     mask()
 }
 
+get_active_ptfce_wrapper <- function(tfce_null) {
+  tfce_null |>
+    dplyr::mutate(tmp = purrr::map(ptfce, get_active_ptfce)) |>
+    dplyr::select(-copes) |>
+    tidyr::unnest(tmp) |>
+    dplyr::select(-ptfce)
+}
+
+
 get_ptfce_maxes <- function(
   row,
   do_fwe_correction = TRUE,

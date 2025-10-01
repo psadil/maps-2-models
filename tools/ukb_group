@@ -2,18 +2,26 @@
 #SBATCH --job-name=ukb_pop
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=16G
+#SBATCH --mem=256G
 #SBATCH -o data-raw/ukb_pop.log
 #SBATCH --time=6:00:00
 
+ml fsl
+ml afni
 set -xeu
+export FSLOUTPUTTYPE=NIFTI2_GZ
 
+
+#echo "merging"
+#fslmerge -t data-raw/ukb_mni_all.nii.gz data-raw/ukb_mni/*gz
 #gunzip -k data-raw/ukb_mni_all.nii.gz
 
-echo "merging"
-#fslmerge -t data-raw/ukb_mni_all.nii.gz data-raw/ukb_mni/*gz
 echo "average"
-tools/niimath data-raw/ukb_mni_all.nii -Tmean data-raw/ukb_mni_all_tmean.nii.gz 
-echo "standard dev"
-tools/niimath data-raw/ukb_mni_all.nii -Tstd data-raw/ukb_mni_all_tstd.nii.gz 
+#niimath data-raw/ukb_mni_all.nii -Tmean data-raw/ukb_mni_all_tmean.nii.gz 
+3dTstat -mean -prefix tmean.nii.gz -mask data-raw/MNI152_T1_2mm_brain_mask.nii.gz data-raw/ukb_mni_all.nii
 
+echo "standard dev"
+#niimath data-raw/ukb_mni_all.nii -Tstd data-raw/ukb_mni_all_tstd.nii.gz 
+3dTstat -stdevNOD -prefix tstd.nii.gz -mask data-raw/MNI152_T1_2mm_brain_mask.nii.gz data-raw/ukb_mni_all.nii
+
+fslmaths tmean.nii.gz -mul 195.8265 -div tstd.nii.gz data-raw/glm_manual/nsub-38347_iter-0_task-EMOTION_cope-5_type-UKB_tstat1.nii.gz

@@ -188,7 +188,7 @@ get_min_distance_surf <- function(
     tidyr::unnest(distances)
 }
 
-get_masked_tstat <- function(filestem) {
+get_masked_tstat <- function(filestem, threshold = -log(0.05)) {
   #' threshold tfce_tstat_c1 by tfce_tstat_fwep_c1 (neg)
 
   niidir <- Sys.getenv("NIIDIR")
@@ -209,7 +209,7 @@ get_masked_tstat <- function(filestem) {
     cortex_right = glue::glue("{niidir}/{filestem}_R_tfce_tstat_c1.gii"),
   )
 
-  mask_cifti_by_logp(img = tstat, fwe = fwe)
+  mask_cifti_by_logp(img = tstat, fwe = fwe, threshold = threshold)
 }
 
 
@@ -357,48 +357,54 @@ get_gold_peaks_cifti <- function(tfce_pop) {
     tidyr::unnest(inds)
 }
 
-get_cifti_augmented2 <- function(extrema, gold_peaks_cifti, vox_mm = 2) {
+get_cifti_augmented2_rows <- function(
+  study_peaks,
+  gold_peaks_cifti,
+  vox_mm = 2
+) {
+  study_peaks |>
+    dplyr::group_nest(type, Task, CopeNumber, n_sub, iter, threshold) |>
+    dplyr::mutate(
+      iter_gold = purrr::pmap(
+        list(type = type, Task = Task, CopeNumber = CopeNumber),
+        function(type, Task, CopeNumber) {
+          dplyr::filter(
+            gold_peaks_cifti,
+            type == .env$type,
+            Task == .env$Task,
+            CopeNumber == .env$CopeNumber
+          )
+        }
+      ),
+      data = purrr::map2(
+        data,
+        iter_gold,
+        get_cifti_augmented2,
+        vox_mm = vox_mm
+      )
+    ) |>
+    dplyr::select(-.data$iter_gold) |>
+    tidyr::unnest(data)
+}
+
+get_cifti_augmented2 <- function(extrema, iter_gold, vox_mm = 2) {
   if (nrow(extrema) < 1) {
     # some values of n_sub are skipped, so we must skip here, too
     return(tibble::tibble())
   }
-  iter_gold <- gold_peaks_cifti |>
-    dplyr::semi_join(
-      dplyr::distinct(extrema, type, Task, CopeNumber),
-      by = dplyr::join_by(Task, type, CopeNumber)
-    )
 
-  if (unique(extrema$type) %in% c("SURFACE", "MSMALL")) {
-    out <- extrema |>
-      dplyr::group_nest(type, Task, CopeNumber, n_sub, iter) |>
-      dplyr::mutate(
-        distances = purrr::map(
-          data,
-          ~ get_cifti_augmented(
-            extrema = .x,
-            ee_gold = iter_gold,
-            vox_mm = vox_mm
-          ),
-        )
-      )
+  if (unique(iter_gold$type) %in% c("SURFACE", "MSMALL")) {
+    out <- get_cifti_augmented(extrema, ee_gold = iter_gold, vox_mm = vox_mm)
   } else {
-    out <- extrema |>
-      dplyr::group_nest(type, Task, CopeNumber, n_sub, iter) |>
-      dplyr::mutate(
-        distances = purrr::map(
-          data,
-          ~ augment_distance(
-            study = .x,
-            reference = iter_gold,
-            vox_mm = vox_mm
-          ) |>
-            dplyr::select(-type, -Task, -CopeNumber, -n_sub, -iter)
-        )
-      )
+    out <- augment_distance(
+      study = extrema,
+      reference = iter_gold,
+      vox_mm = vox_mm
+    ) |>
+      dplyr::select(-type, -n_sub, -iter, -Task, -CopeNumber, -study_ind) |>
+      dplyr::mutate(index.study = NA_integer_)
   }
-  out |>
-    dplyr::select(-data) |>
-    tidyr::unnest(distances)
+  out
 }
 
 masked_cifti_to_tbl <- function(xii, extrema, structure) {
@@ -409,10 +415,10 @@ masked_cifti_to_tbl <- function(xii, extrema, structure) {
 }
 
 
-get_cifti_peaks <- function(filestem) {
+get_cifti_peaks <- function(filestem, threshold = -log(0.05)) {
   palmdir <- Sys.getenv("PALMDIR")
 
-  cifti <- get_masked_tstat(filestem)
+  cifti <- get_masked_tstat(filestem, threshold = threshold)
 
   maxima_file <- get_maxima(
     cifti = cifti,
@@ -438,6 +444,7 @@ get_cifti_peaks <- function(filestem) {
 
 get_nifti_peaks <- function(
   filestem,
+  threshold = -log(0.05),
   cluster_thresh = 0.0001,
   mask = MNITemplate::getMNIPath("Brain_Mask", "2mm"),
   minextent = 0
@@ -450,7 +457,7 @@ get_nifti_peaks <- function(
   fwe <- glue::glue("{niidir}/{filestem}_tfce_tstat_fwep_c1.nii")
 
   fwe_nii <- RNifti::readNifti(fwe)
-  fwe_mask <- RNifti::asNifti(fwe_nii > -log(0.05), reference = fwe_nii)
+  fwe_mask <- RNifti::asNifti(fwe_nii > threshold, reference = fwe_nii)
 
   tstat_nii <- RNifti::readNifti(tstat) |>
     neurobase::mask_img(mask = m) |>
@@ -473,8 +480,32 @@ get_nifti_peaks <- function(
     dplyr::left_join(get_sizes(cls1), by = "Cluster Index")
 }
 
+get_study_peaks_cifti_rows <- function(
+  tfce,
+  max_n_sub = 40,
+  threshold = -log(0.05)
+) {
+  tfce |>
+    dplyr::mutate(row = dplyr::row_number()) |>
+    dplyr::group_nest(row) |>
+    dplyr::mutate(
+      data = purrr::map(
+        data,
+        get_study_peaks_cifti,
+        max_n_sub = max_n_sub,
+        threshold = threshold
+      )
+    ) |>
+    tidyr::unnest(data) |>
+    dplyr::select(-row)
+}
 
-get_study_peaks_cifti <- function(tfce_row, max_n_sub = 40) {
+
+get_study_peaks_cifti <- function(
+  tfce_row,
+  max_n_sub = 40,
+  threshold = -log(0.05)
+) {
   type <- unique(tfce_row$type)
   if (unique(tfce_row$n_sub) > max_n_sub) {
     return(tibble::tibble())
@@ -483,16 +514,25 @@ get_study_peaks_cifti <- function(tfce_row, max_n_sub = 40) {
   if (type %in% c("SURFACE", "MSMALL")) {
     out <- tfce_row |>
       dplyr::mutate(
-        extrema = purrr::map(filestem, get_cifti_peaks)
+        extrema = purrr::map(
+          filestem,
+          get_cifti_peaks,
+          threshold = .env$threshold
+        )
       )
   } else {
     out <- tfce_row |>
       dplyr::mutate(
-        extrema = purrr::map(filestem, get_nifti_peaks)
+        extrema = purrr::map(
+          filestem,
+          get_nifti_peaks,
+          threshold = .env$threshold
+        )
       )
   }
 
   out |>
     dplyr::select(-cmd) |>
-    tidyr::unnest(extrema)
+    tidyr::unnest(extrema) |>
+    dplyr::mutate(threshold = .env$threshold)
 }

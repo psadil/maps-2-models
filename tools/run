@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name=rois
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=3
-#SBATCH --mem=4G
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=16G
 #SBATCH --nodes=1
-#SBATCH --time=1-0:00:00
+#SBATCH --time=4-0:00:00
 #SBATCH -o rois.log
 #SBATCH --constraint="intel"
 
@@ -16,7 +16,6 @@ mamba activate meta
 ml matlab
 ml fsl
 export PATH=/dcl01/smart/data/psadil/meta/tools:/users/pssadil/workbench/bin_rh_linux64:${PATH}:/users/pssadil/git/PALM
+export FSLOUTPUTTYPE=NIFTI_GZ
 
-#Rscript -e "targets::tar_make(c(glm_pop_ukb))"
-Rscript -e "targets::tar_make(c(rois_all))"
-#Rscript -e "targets::tar_make(study_to_gold_distances)"
+Rscript -e "targets::tar_make()"

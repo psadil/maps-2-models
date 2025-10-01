@@ -34,6 +34,11 @@ controller <- crew::crew_controller_local(
   workers = as.integer(Sys.getenv("SLURM_CPUS_PER_TASK", 1))
 )
 
+controller_small <- crew::crew_controller_local(
+  name = "small",
+  workers = 1
+)
+
 # controller <- crew.cluster::crew_controller_slurm(
 #   name = "slurm",
 #   workers = 5,
@@ -51,7 +56,7 @@ targets::tar_option_set(
   format = "qs",
   storage = "worker",
   packages = c("oro.nifti"),
-  controller = controller,
+  controller = crew::crew_controller_group(controller, controller_small),
   workspace_on_error = FALSE
 )
 
@@ -93,8 +98,7 @@ list(
     type,
     iter,
     n_sub,
-    format = "parquet",
-    deployment = "main"
+    format = "parquet"
   ),
   tar_group_by(
     ukb_samples,
@@ -108,8 +112,7 @@ list(
     type,
     iter,
     n_sub,
-    format = "parquet",
-    deployment = "main"
+    format = "parquet"
   ),
   tar_group_by(
     hcp_samples_all,
@@ -124,8 +127,7 @@ list(
     type,
     iter,
     n_sub,
-    format = "parquet",
-    deployment = "main"
+    format = "parquet"
   ),
   tar_target(
     roi_avg,
@@ -133,12 +135,7 @@ list(
     pattern = cross(test, n_parcels),
     format = "parquet"
   ),
-  tar_target(
-    rois,
-    test_roi(roi_avg, hcp_samples),
-    pattern = map(hcp_samples),
-    format = "parquet"
-  ),
+  tar_target(rois, test_roi_wrapper(roi_avg, hcp_samples), format = "parquet"),
   tar_target(rois_pop, test_roi_pop(roi_avg), format = "parquet"),
   tar_target(
     roi_avg_ukb,
@@ -147,15 +144,8 @@ list(
     format = "parquet"
   ),
   tar_target(
-    roi_avg_ukb2,
-    roi_avg_ukb,
-    format = "parquet",
-    deployment = "main"
-  ),
-  tar_target(
     rois_ukb,
-    test_roi(roi_avg_ukb2, ukb_samples),
-    pattern = map(ukb_samples),
+    test_roi_wrapper(roi_avg_ukb, ukb_samples),
     format = "parquet"
   ),
   tar_target(rois_pop_ukb, test_roi_pop(roi_avg_ukb), format = "parquet"),
@@ -180,11 +170,12 @@ list(
     dplyr::bind_rows(get_tfce_pop(test), tfce_pop_ukb),
     format = "parquet"
   ),
+  tar_target(threshold, c(0, -log(0.05))),
   tar_target(
     study_peaks,
-    get_study_peaks_cifti(tfce, max_n_sub = 40),
+    get_study_peaks_cifti_rows(tfce, max_n_sub = 40, threshold = threshold),
     format = "parquet",
-    pattern = map(tfce)
+    pattern = map(threshold)
   ),
   tar_target(
     gold_peaks_cifti,
@@ -192,11 +183,23 @@ list(
     format = "parquet",
     pattern = map(tfce_pop)
   ),
+  tarchetypes::tar_group_by(
+    study_peaks_grouped,
+    study_peaks,
+    type,
+    Task,
+    CopeNumber,
+    n_sub,
+    iter,
+    threshold,
+    format = "parquet",
+    deployment = "main"
+  ),
   tar_target(
     study_to_gold_distances,
-    get_cifti_augmented2(study_peaks, gold_peaks_cifti),
+    get_cifti_augmented2_rows(study_peaks_grouped, gold_peaks_cifti),
     format = "parquet",
-    pattern = map(study_peaks)
+    pattern = map(study_peaks_grouped)
   ),
   tar_target(
     glm,
@@ -257,6 +260,15 @@ list(
     make_data_topo_gold_to_study2(glm2, glm_pop2),
     format = "parquet"
   ),
+  tar_target(
+    data_topo_gold_to_study_bynetwork,
+    make_data_topo_gold_to_study_bynetwork(
+      glm2 = glm2,
+      glm_pop2 = glm_pop2,
+      at = at
+    ),
+    format = "parquet"
+  ),
   tarchetypes::tar_group_by(
     data_topo_study_to_study0,
     glm2,
@@ -272,12 +284,7 @@ list(
     format = "parquet"
   ),
   tar_target(at, make_atlas_full()),
-  tar_target(n_parcels, c(400)),
-  tar_target(
-    at_list,
-    make_atlas_full(n_parcels = n_parcels),
-    pattern = map(n_parcels)
-  ),
+  tar_target(n_parcels, c(200, 400, 800)),
   tar_target(
     ptfce,
     do_ptfce2(hcp_samples = hcp_samples, test = test, enhance = TRUE),
@@ -299,49 +306,6 @@ list(
     format = "parquet"
   ),
   tar_target(
-    augmented,
-    augment_distance2(maxes = maxes, gold_peaks = gold_peaks),
-    format = "parquet"
-  ),
-  tar_target(
-    tfce_null,
-    do_ptfce(
-      fs::dir_ls("data-raw/Fake2B"),
-      n_sub = n_sub,
-      iter = iter,
-      storage_dir = here::here("data-raw/Fake2B-ptfce"),
-      flags = "2BK-0BK",
-      resample = TRUE
-    ),
-    pattern = cross(n_sub, iter)
-  ),
-  tar_target(
-    tfce_pop_null,
-    do_ptfce(
-      fs::dir_ls("data-raw/Fake2B"),
-      n_sub = length(fs::dir_ls("data-raw/Fake2B")),
-      iter = 0,
-      storage_dir = here::here("data-raw/Fake2B-ptfce"),
-      flags = "2BK-0BK",
-      resample = FALSE,
-      enhance = FALSE
-    )
-  ),
-  tar_target(
-    active0_null,
-    tfce_null |>
-      dplyr::mutate(tmp = purrr::map(ptfce, get_active_ptfce)),
-    pattern = map(tfce_null)
-  ),
-  tar_target(
-    active_null,
-    active0_null |>
-      dplyr::select(-copes) |>
-      tidyr::unnest(tmp) |>
-      dplyr::select(-ptfce),
-    format = format_arrow_table()
-  ),
-  tar_target(
     roi_avg_all,
     avg_roi(test_all, n_parcels),
     pattern = cross(test_all, n_parcels),
@@ -349,7 +313,7 @@ list(
   ),
   tar_target(
     rois_all,
-    test_roi(roi_avg_all, hcp_samples_all),
+    test_roi(dplyr::filter(roi_avg_all, n_parcels == 400), hcp_samples_all),
     pattern = map(hcp_samples_all),
     format = "parquet"
   ),
@@ -378,17 +342,20 @@ list(
   tar_target(
     data_roi_study_to_study,
     make_data_roi_study_to_study(
-      rois_tested = dplyr::bind_rows(rois, rois_ukb),
-      gold_tested = dplyr::bind_rows(rois_pop, rois_pop_ukb)
+      rois_tested = dplyr::bind_rows(rois, rois_ukb)
     ),
     format = "parquet"
   ),
   tar_target(
     data_roi_study_to_study2,
     make_data_roi_study_to_study2(
-      rois_tested = dplyr::bind_rows(rois, rois_ukb)
+      rois_tested = dplyr::bind_rows(rois, rois_ukb),
+      n_workers = 8
     ),
-    format = "parquet"
+    format = "parquet",
+    resources = targets::tar_resources(
+      crew = targets::tar_resources_crew(controller = "small")
+    )
   ),
   tar_target(
     data_peak_study_to_gold,
@@ -403,7 +370,8 @@ list(
     data_model_gold_gold_to_study,
     make_data_model_gold_gold_to_study(
       dataset_gold = here::here("data-raw/out-perm-gold-cpm-sametest-schaefer"),
-      dataset = here::here("data-raw/out-perm-cpm-sametest-schaefer")
+      dataset = here::here("data-raw/out-perm-cpm-sametest-schaefer"),
+      measures = measures
     ),
     format = "parquet"
   ),
@@ -411,7 +379,8 @@ list(
     data_model_gold_gold_to_study2,
     make_data_model_gold_gold_to_study2(
       dataset_gold = here::here("data-raw/out-perm-gold-cpm-sametest-schaefer"),
-      dataset = here::here("data-raw/out-perm-cpm-sametest-schaefer")
+      dataset = here::here("data-raw/out-perm-cpm-sametest-schaefer"),
+      measures = measures
     ),
     format = "parquet"
   ),
@@ -423,21 +392,16 @@ list(
       ),
       dataset = here::here(
         "data-raw/out-perm-cpm-preds-sametest-schaefer-features"
-      )
+      ),
+      measures = measures
     ),
     format = "parquet"
   ),
   tar_target(
     data_model_study_to_study,
     make_data_model_study_to_study(
-      dataset = here::here("data-raw", "out-perm-cpm-preds-sametest-schaefer")
-    ),
-    format = "parquet"
-  ),
-  tar_target(
-    data_model_study_to_study2,
-    make_data_model_study_to_study2(
-      dataset = here::here("data-raw", "out-perm-cpm-sametest-schaefer")
+      dataset = here::here("data-raw", "out-perm-cpm-preds-sametest-schaefer"),
+      measures = measures
     ),
     format = "parquet"
   ),
@@ -447,7 +411,8 @@ list(
       dataset = here::here(
         "data-raw",
         "out-perm-cpm-preds-sametest-schaefer-features"
-      )
+      ),
+      measures = measures
     ),
     format = "parquet"
   ),
@@ -467,70 +432,61 @@ list(
     format = "file"
   ),
   tar_target(
-    roi2,
-    make_roi2(data_roi_study_to_gold2, data_roi_study_to_study2),
-    packages = c("ggplot2", "patchwork")
-  ),
-  tar_target(
     fig_roi2,
     make_tikz(
-      p = roi2,
+      p = make_roi2(data_roi_study_to_gold2, data_roi_study_to_study2),
       file = "analyses/figures/roi2.tex",
       width = 7,
       height = 7.5
     ),
-    format = "file"
+    format = "file",
+    packages = c("patchwork")
   ),
   tar_target(
-    prop_active_most_active_roi_ptfce_null,
-    make_prop_active_most_active_roi_ptfce_null(
-      at_list = at_list,
-      active_null = active_null,
-      iter = iter,
-      gold_tested = gold_tested
-    ),
-    packages = c("ggplot2", "patchwork")
-  ),
-  tar_target(
-    fig_prop_active_most_active_roi_ptfce_null,
+    fig_prop_active_most_active_roi,
     make_tikz(
-      p = prop_active_most_active_roi_ptfce_null,
-      file = "analyses/figures/prop-active-most-active-roi-ptfce-null.tex",
-      width = 5,
-      height = 3
-    ),
-    format = "file"
-  ),
-  tar_target(
-    prop_active_most_active_roi_ptfce,
-    make_prop_active_most_active_roi_ptfce(
-      data_roi_study_to_gold = data_roi_study_to_gold
-    ),
-    packages = c("ggplot2")
-  ),
-  tar_target(
-    fig_prop_active_most_active_roi_ptfce,
-    make_tikz(
-      p = prop_active_most_active_roi_ptfce,
-      file = "analyses/figures/prop-active-most-active-roi-ptfce.tex",
+      p = make_prop_active_most_active_roi(
+        data_roi_study_to_gold2 = data_roi_study_to_gold2
+      ),
+      file = "analyses/figures/prop-active-most-active-roi.tex",
       width = 6,
-      height = 6.5
+      height = 8
+    ),
+    format = "file",
+    packages = c("patchwork")
+  ),
+  tar_target(
+    peaks_reliability,
+    make_peaks_reliability(
+      data_peak_study_to_study = data_peak_study_to_study,
+      threshold = "reg",
+      nrow_subfig = 2
+    ),
+    packages = c("patchwork")
+  ),
+  tar_target(
+    peaks_validity,
+    make_peaks_validity(
+      data_peak_study_to_gold = data_peak_study_to_gold,
+      threshold = "reg"
+    ),
+    packages = c("patchwork")
+  ),
+  tar_target(
+    fig_peaks_validity,
+    make_tikz(
+      p = peaks_validity,
+      file = "analyses/figures/peaks_validity.tex",
+      width = 6,
+      height = 8
     ),
     format = "file"
   ),
   tar_target(
-    peaks,
-    make_peaks(
-      data_peak_study_to_gold = data_peak_study_to_gold,
-      data_peak_study_to_study = data_peak_study_to_study
-    ),
-    packages = c("ggplot2", "patchwork")
-  ),
-  tar_target(
-    fig_peaks,
+    fig_peaks_reliability,
     make_tikz(
-      p = peaks,
-      file = "analyses/figures/peaks.tex",
+      p = peaks_reliability,
+      file = "analyses/figures/peaks_reliability.tex",
       width = 7,
       height = 9
     ),
@@ -557,20 +513,10 @@ list(
   tar_target(
     fig_prop_effect_size,
     make_tikz(
-      p = prop_effect_size,
+      p = make_prop_effect_size(glm_pop2),
       file = "analyses/figures/prop-effect-size.tex",
-      width = 4.5,
-      height = 3
-    ),
-    format = "file"
-  ),
-  tar_target(
-    fig_topo_bynetwork,
-    make_tikz(
-      p = topo_bynetwork,
-      file = "analyses/figures/topo-bynetwork.tex",
-      width = 6,
-      height = 4
+      width = 5,
+      height = 5
     ),
     format = "file"
   ),
@@ -595,89 +541,56 @@ list(
   tar_target(
     fig_model2,
     make_tikz(
-      p = model2,
+      p = make_model2(
+        data_model_gold_gold_to_study2 = data_model_gold_gold_to_study2
+      ),
       file = "analyses/figures/model2.tex",
-      width = 4.5,
+      width = 8,
       height = 6
     ),
-    format = "file"
+    format = "file",
+    packages = "patchwork"
+  ),
+  tar_target(
+    fig_model2_neg,
+    make_tikz(
+      p = make_model2_neg(
+        data_model_gold_gold_to_study2 = data_model_gold_gold_to_study2
+      ),
+      file = "analyses/figures/model2_neg.tex",
+      width = 8,
+      height = 6
+    ),
+    format = "file",
+    packages = "patchwork"
   ),
   tar_target(
     fig_model3,
     make_tikz(
-      p = model3,
+      p = make_model3(
+        data_model_gold_gold_to_study3 = data_model_gold_gold_to_study3,
+        data_model_study_to_study3 = data_model_study_to_study3
+      ),
       file = "analyses/figures/model3.tex",
-      width = 4.5,
-      height = 6
-    ),
-    format = "file"
-  ),
-  tar_target(
-    model2,
-    make_model2(
-      data_model_gold_gold_to_study2 = data_model_gold_gold_to_study2
-      # data_model_study_to_study2 = data_model_study_to_study2
-    ),
-    packages = c("ggplot2", "patchwork")
-  ),
-  tar_target(
-    model3,
-    make_model3(
-      data_model_gold_gold_to_study3 = data_model_gold_gold_to_study3,
-      data_model_study_to_study3 = data_model_study_to_study3
-    ),
-    packages = c("ggplot2", "patchwork")
-  ),
-  tar_target(
-    all_cog,
-    make_all_cog(data_model_gold_gold_to_study = data_model_gold_gold_to_study),
-    packages = c("ggplot2")
-  ),
-  tar_target(
-    fig_all_cog,
-    make_tikz(
-      p = all_cog,
-      file = "analyses/figures/all_cog.tex",
       width = 6,
       height = 8
     ),
-    format = "file"
+    format = "file",
+    packages = "patchwork"
   ),
   tar_target(
-    model_all_consistency,
-    make_model_all_icc(
-      data_model_study_to_study = data_model_study_to_study,
-      type = "consistency"
-    ),
-    packages = c("ggplot2")
-  ),
-  tar_target(
-    model_all_agreement,
-    make_model_all_icc(
-      data_model_study_to_study = data_model_study_to_study,
-      type = "agreement"
-    ),
-    packages = c("ggplot2")
-  ),
-  tar_target(
-    fig_model_all_agreement,
+    fig_model_all_cog,
     make_tikz(
-      p = model_all_agreement,
-      file = "analyses/figures/model_all_agreement.tex",
+      p = make_all_cog(
+        data_model_gold_gold_to_study = data_model_gold_gold_to_study,
+        data_model_study_to_study = data_model_study_to_study
+      ),
+      file = "analyses/figures/model_all_cog.tex",
       width = 6,
       height = 8
     ),
-    format = "file"
-  ),
-  tar_target(
-    fig_model_all_consistency,
-    make_tikz(
-      p = model_all_consistency,
-      file = "analyses/figures/model_all_consistency.tex",
-      width = 6,
-      height = 8
-    ),
-    format = "file"
+    format = "file",
+    packages = "patchwork"
   ),
   tar_target(
     model_model,
@@ -717,17 +630,176 @@ list(
     packages = c("ggplot2", "patchwork")
   ),
   tar_target(
-    data_model_gold_gold_to_study_popsize,
-    make_data_model_gold_gold_to_study_popsize(
-      dataset_gold = here::here("data-raw/out-popsize-gold"),
-      dataset = here::here("data-raw/out-popsize")
-    )
+    peak_table_count,
+    make_table_of_studies_without_peaks(
+      study_peaks_grouped,
+      "analyses/figures/peak_table_count.tex"
+    ),
+    format = "file"
   ),
   tar_target(
-    data_model_study_to_study_popsize,
-    make_data_model_study_to_study_popsize(
-      dataset = here::here("data-raw/out-popsize-pred")
-    )
+    fig_peaks_reliability_unthresholded,
+    make_tikz(
+      p = make_peaks_reliability(
+        data_peak_study_to_study = data_peak_study_to_study,
+        threshold = "unthresholded",
+        nrow_subfig = 2,
+        base_size = 8
+      ),
+      file = glue::glue(
+        "analyses/figures/peaks_reliability_unthresholded.tex"
+      ),
+      width = 6,
+      height = 8
+    ),
+    format = "file",
+    packages = c("patchwork")
+  ),
+  tar_target(
+    peaks_validity_unthresholded,
+    make_peaks_validity(
+      data_peak_study_to_gold = data_peak_study_to_gold,
+      threshold = "unthresholded"
+    ),
+    packages = c("patchwork")
+  ),
+  tar_target(
+    fig_peaks_validity_unthresholded,
+    make_tikz(
+      p = peaks_validity_unthresholded,
+      file = "analyses/figures/peaks_validity_unthresholded.tex",
+      width = 6,
+      height = 8
+    ),
+    format = "file"
+  ),
+  tar_target(
+    data_modelroi_gold_gold_to_study,
+    make_data_model_gold_gold_to_study(
+      dataset_gold = here::here(
+        "data-raw/out-rois/out-perm-gold-cpm-sametest-schaefer"
+      ),
+      dataset = here::here("data-raw/out-rois/out-perm-cpm-sametest-schaefer"),
+      measures = measures
+    ),
+    format = "parquet"
+  ),
+  tar_target(
+    fig_modelroi,
+    make_tikz(
+      p = make_modelroi(data_modelroi_gold_gold_to_study),
+      file = "analyses/figures/modelroi.tex",
+      width = 6,
+      height = 8
+    ),
+    format = "file"
+  ),
+  tar_target(
+    data_model_gold_gold_to_study_r2,
+    make_data_model_gold_gold_to_study_r2(
+      dataset_gold = here::here(
+        "data-raw/out-perm-gold-cpm-sametest-schaefer"
+      ),
+      dataset = here::here("data-raw/out-perm-cpm-sametest-schaefer"),
+      measures = measures
+    ),
+    format = "parquet"
+  ),
+  tar_target(
+    fig_model_r2,
+    make_tikz(
+      p = make_model_r2(data_model_gold_gold_to_study_r2),
+      file = "analyses/figures/model_r2.tex",
+      width = 8,
+      height = 8
+    ),
+    format = "file"
+  ),
+  tar_target(measures, get_measures()),
+  tar_target(
+    fig_peaks_by_fwe,
+    make_tikz(
+      p = make_peaks_by_fwe(gold_peaks, maxes),
+      file = "analyses/figures/peaks_by_fwe.tex",
+      width = 8,
+      height = 6
+    ),
+    format = "file",
+    packages = c("patchwork")
+  ),
+  tar_target(
+    fig_ecdf_peak_reliability,
+    make_tikz(
+      p = make_ecdf_peak_reliability(data_peak_study_to_study),
+      file = "analyses/figures/ecdf_peak_reliability.tex",
+      width = 6,
+      height = 6
+    ),
+    format = "file",
+    packages = c("patchwork")
+  ),
+  tar_target(
+    top_ten_regions,
+    write_regions(
+      rois_pop,
+      rois_pop_ukb,
+      dst = "analyses/tables/top_ten_regions.tsv"
+    ),
+    format = "file"
+  ),
+  tar_target(
+    performance_file,
+    write_model_performance(
+      data_model_gold_gold_to_study,
+      data_model_gold_gold_to_study_r2,
+      dst = "analyses/tables/mm_scores.tsv"
+    ),
+    format = "file"
+  ),
+  tar_target(
+    top_ten_peaks,
+    write_peaks(
+      gold_tested = dplyr::bind_rows(rois_pop, rois_pop_ukb),
+      dst = "analyses/tables/top_ten_peaks.tsv"
+    ),
+    format = "file"
+  ),
+  tar_target(
+    fig_peak_bysize,
+    make_tikz(
+      p = make_peak_bysize(study_to_gold_distances, glm_pop2),
+      file = "analyses/figures/peak-bysize.tex",
+      width = 5,
+      height = 5
+    ),
+    packages = "patchwork"
+  ),
+  tar_target(
+    fig_peak_bynetwork,
+    make_tikz(
+      p = make_peak_bynetwork(study_to_gold_distances, at, glm_pop2),
+      file = "analyses/figures/peak-bynetwork.tex",
+      width = 5,
+      height = 5
+    ),
+    packages = "patchwork"
+  ),
+  tar_target(
+    fig_topo_bynetwork,
+    make_tikz(
+      p = make_topo_bynetwork(
+        data_topo_gold_to_study_bynetwork,
+        glm_pop2,
+        at = at
+      ),
+      file = "analyses/figures/topo-bynetwork.tex",
+      width = 5,
+      height = 6
+    ),
+    packages = "patchwork"
+  ),
+  tar_target(
+    peak_avg_bysize,
+    make_peak_avg_bysize(study_to_gold_distances, glm_pop2)
   )
 )
-
