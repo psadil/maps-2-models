@@ -8,9 +8,12 @@ make_roi <- function(data_roi_study_to_gold, data_roi_study_to_study) {
     ggplot2::ggplot(
       ggplot2::aes(x = n_sub, y = avg, color = type)
     ) +
-    ggplot2::geom_point() +
-    ggplot2::geom_line() +
-    ggplot2::geom_errorbar(aes(ymin = lower, ymax = upper)) +
+    ggplot2::geom_point(alpha = 0.3) +
+    ggplot2::geom_line(alpha = 0.3) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = lower, ymax = upper),
+      alpha = 0.3
+    ) +
     ggplot2::facet_wrap(~Task, nrow = 2, scales = "free_x") +
     ggplot2::scale_y_continuous(
       "Rank Correlation with\nGold Standard\n(Most Active ROI)",
@@ -22,7 +25,7 @@ make_roi <- function(data_roi_study_to_gold, data_roi_study_to_study) {
       transform = "log10"
     ) +
     ggplot2::scale_color_viridis_d(name = NULL, option = "turbo") +
-    ggplot2::guides(colour = guide_legend(position = "inside"))
+    ggplot2::guides(colour = ggplot2::guide_legend(position = "inside"))
 
   b <- data_roi_study_to_study |>
     dplyr::mutate(
@@ -32,9 +35,12 @@ make_roi <- function(data_roi_study_to_gold, data_roi_study_to_study) {
     dplyr::filter(n_parcels == 400) |>
     ggplot2::ggplot(ggplot2::aes(x = n_sub, y = .estimate, color = type)) +
     ggplot2::facet_wrap(~Task, scales = "free_x", nrow = 2) +
-    ggplot2::geom_point() +
-    ggplot2::geom_line() +
-    ggplot2::geom_errorbar(ggplot2::aes(ymin = .lower, ymax = .upper)) +
+    ggplot2::geom_point(alpha = 0.3) +
+    ggplot2::geom_line(alpha = 0.3) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = .lower, ymax = .upper),
+      alpha = 0.3
+    ) +
     ggplot2::scale_y_continuous(
       "ICC(C,1) Across\nBootstrap Samples",
       breaks = c(0, 0.5, 1),
@@ -53,9 +59,9 @@ make_roi <- function(data_roi_study_to_gold, data_roi_study_to_study) {
     b +
     patchwork::plot_layout(ncol = 1) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    ggplot2::theme_gray(base_size = 10) +
+    ggplot2::theme_minimal(base_size = 10) +
       ggplot2::theme(
-        legend.margin = margin(0, 0, 0, 0), # turned off for alignment
+        legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
         legend.justification.top = "left",
         legend.justification.left = "bottom",
         legend.justification.bottom = "right",
@@ -101,9 +107,12 @@ make_roi2 <- function(data_roi_study_to_gold, data_roi_study_to_study) {
     dplyr::filter(n_parcels == 400) |>
     ggplot2::ggplot(ggplot2::aes(x = n_sub, y = .estimate, color = type)) +
     ggplot2::facet_wrap(~Task, scales = "free_x", nrow = 2) +
-    ggplot2::geom_point() +
-    ggplot2::geom_line() +
-    ggplot2::geom_errorbar(ggplot2::aes(ymin = .lower, ymax = .upper)) +
+    ggplot2::geom_point(alpha = 0.3) +
+    ggplot2::geom_line(alpha = 0.3) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = .lower, ymax = .upper),
+      alpha = 0.3
+    ) +
     ggplot2::scale_y_continuous(
       "ICC(1) Across Bootstrap Samples",
       limits = c(0, 1),
@@ -123,7 +132,7 @@ make_roi2 <- function(data_roi_study_to_gold, data_roi_study_to_study) {
     b +
     patchwork::plot_layout(ncol = 1, heights = c(2, 1)) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    ggplot2::theme_gray(base_size = 10) +
+    ggplot2::theme_minimal(base_size = 10) +
       ggplot2::theme(
         legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
         legend.justification.top = "left",
@@ -230,7 +239,7 @@ make_prop_active_most_active_roi_ptfce_null <- function(
       limits = c(0, 0.12)
     ) +
     ggplot2::xlab("N Sub") +
-    ggplot2::theme_gray(base_size = 12)
+    ggplot2::theme_minimal(base_size = 12)
 }
 
 .make_prop_active_most_active_roi <- function(
@@ -299,7 +308,7 @@ make_prop_active_most_active_roi <- function(data_roi_study_to_gold2) {
     msmall +
     ukb +
     patchwork::plot_layout(ncol = 1, guides = "collect") &
-    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::theme_minimal(base_size = 8) +
       ggplot2::theme(legend.position = "bottom")
 }
 
@@ -359,7 +368,7 @@ make_peaks_validity <- function(
     surf +
     patchwork::plot_layout(guides = "collect") +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    ggplot2::theme_gray(base_size = 8)
+    ggplot2::theme_minimal(base_size = 8)
 }
 
 .make_1_peak_reliability <- function(.d, type, nrow) {
@@ -426,7 +435,7 @@ make_peaks_reliability <- function(
       tag_levels = "a",
       tag_suffix = ")"
     ) &
-    ggplot2::theme_gray(base_size = base_size) +
+    ggplot2::theme_minimal(base_size = base_size) +
       ggplot2::theme(legend.position = "bottom")
 }
 
@@ -488,7 +497,7 @@ make_peak_bysize <- function(study_to_gold_distances, glm_pop2) {
       breaks = c(0, 1),
       labels = c(0, 1)
     ) +
-    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::theme_minimal(base_size = 8) +
     ggplot2::ggtitle("Unthresholded")
 
   b <- d |>
@@ -502,7 +511,7 @@ make_peak_bysize <- function(study_to_gold_distances, glm_pop2) {
       breaks = c(0, 1),
       labels = c(0, 1)
     ) +
-    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::theme_minimal(base_size = 8) +
     ggplot2::ggtitle("Thresholded")
 
   a +
@@ -533,7 +542,7 @@ make_peak_bysize <- function(study_to_gold_distances, glm_pop2) {
     ggplot2::scale_x_continuous(
       "avg dist(Gold Standard Peak, Study Peak) (mm)"
     ) +
-    ggplot2::theme_gray(base_size = 8)
+    ggplot2::theme_minimal(base_size = 8)
 }
 
 
@@ -650,8 +659,11 @@ make_topo <- function(data_topo_gold_to_study, data_topo_study_to_study) {
     ) |>
     ggplot2::ggplot(ggplot2::aes(x = n_sub, y = estimate, color = type)) +
     ggplot2::facet_wrap(~Task, scales = "free_x", nrow = 2) +
-    ggplot2::geom_line() +
-    ggplot2::geom_errorbar(ggplot2::aes(ymin = lower, ymax = upper)) +
+    ggplot2::geom_line(alpha = 0.3) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = lower, ymax = upper),
+      alpha = 0.3
+    ) +
     ggplot2::scale_x_continuous("N Sub", transform = "log10") +
     ggplot2::scale_y_continuous(
       "ICC(C,1) Across Bootstrap Samples",
@@ -664,7 +676,7 @@ make_topo <- function(data_topo_gold_to_study, data_topo_study_to_study) {
     b +
     patchwork::plot_layout(nrow = 2) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::theme_minimal(base_size = 8) +
       ggplot2::theme(
         legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
         legend.justification.top = "left",
@@ -702,7 +714,7 @@ make_prop_effect_size <- function(glm_pop2) {
     ggplot2::geom_col(position = "dodge") +
     ggplot2::guides(fill = ggplot2::guide_legend("Cohen's d")) +
     ggplot2::xlab(NULL) +
-    ggplot2::theme_gray(base_size = 12) +
+    ggplot2::theme_minimal(base_size = 12) +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5))
 }
 
@@ -766,7 +778,7 @@ make_topo_bynetwork <- function(
       labels = c(0, 0.5, 1),
       breaks = c(0, 0.5, 1)
     ) +
-    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::theme_minimal(base_size = 8) +
     ggplot2::theme(legend.position = "bottom")
 }
 
@@ -852,7 +864,7 @@ make_model <- function(
     b +
     patchwork::plot_layout(ncol = 1) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::theme_minimal(base_size = 8) +
       ggplot2::theme(
         legend.margin = margin(0, 0, 0, 0), # turned off for alignment
         legend.justification.top = "left",
@@ -972,7 +984,7 @@ make_model2 <- function(data_model_gold_gold_to_study2) {
     b +
     patchwork::plot_layout(nrow = 2) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::theme_minimal(base_size = 8) +
       ggplot2::theme(
         legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
         legend.justification.top = "left",
@@ -1091,7 +1103,7 @@ make_model2_neg <- function(data_model_gold_gold_to_study2) {
     b +
     patchwork::plot_layout(nrow = 2) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::theme_minimal(base_size = 8) +
       ggplot2::theme(
         legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
         legend.justification.top = "left",
@@ -1232,14 +1244,15 @@ make_model3 <- function(
     b +
     patchwork::plot_layout(ncol = 1) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    ggplot2::theme_gray(base_size = 8) +
+    ggplot2::theme_minimal(base_size = 8) +
       ggplot2::theme(
         legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
         legend.justification.top = "left",
         legend.justification.left = "bottom",
         legend.justification.bottom = "right",
         legend.justification.inside = c(1, 0),
-        legend.location = "plot"
+        legend.location = "plot",
+        legend.box = "horizontal"
       )
 }
 
@@ -1517,7 +1530,7 @@ make_all_cog <- function(
     b +
     patchwork::plot_layout(nrow = 2) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    ggplot2::theme_gray(base_size = 8) &
+    ggplot2::theme_minimal(base_size = 8) &
     ggplot2::theme(
       legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
       legend.justification.top = "left",
@@ -1548,7 +1561,7 @@ make_model_all_icc <- function(data_model_study_to_study, type) {
     ggplot2::scale_fill_viridis_c(option = "turbo", name = "ICC(C,1)") +
     ggplot2::xlab("N Sub") +
     ggplot2::ylab("Instrument") +
-    ggplot2::theme_gray(base_size = 7) +
+    ggplot2::theme_minimal(base_size = 7) +
     ggplot2::theme(
       legend.position = "bottom",
       legend.key.size = unit(8, "pt")
@@ -1800,7 +1813,8 @@ make_modelroi <- function(data_modelroi_gold_gold_to_study) {
     ggplot2::ylab(
       "Average Rank Correlation"
     ) +
-    ggplot2::xlab("N Sub")
+    ggplot2::xlab("N Sub") +
+    ggplot2::theme_minimal()
 }
 
 make_model_r2 <- function(data_model_gold_gold_to_study_r2) {
@@ -1877,13 +1891,15 @@ make_model_r2 <- function(data_model_gold_gold_to_study_r2) {
       colour = ggplot2::guide_legend(position = "inside"),
       fill = ggplot2::guide_legend(position = "inside"),
     ) +
+    ggplot2::theme_minimal(base_size = 8) +
     ggplot2::theme(
       legend.margin = ggplot2::margin(0, 0, 0, 0), # turned off for alignment
       legend.justification.top = "left",
       legend.justification.left = "bottom",
       legend.justification.bottom = "right",
       legend.justification.inside = c(1, 0),
-      legend.location = "plot"
+      legend.location = "plot",
+      legend.box = "horizontal"
     )
 }
 

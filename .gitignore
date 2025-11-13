@@ -46,3 +46,14 @@ data-raw/palm
 bak
 data-raw/warp-log
 data-raw/logs
+analyses/figures
+data-raw/out*
+data-raw/glm_manual
+data-raw/Fake*
+data-raw/cpm*
+data-raw/ukb_mni
+data-raw/bold
+data-raw/palm-ciftis
+# pixi environments
+.pixi
+

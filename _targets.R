@@ -417,19 +417,15 @@ list(
     format = "parquet"
   ),
   tar_target(
-    roi,
-    make_roi(data_roi_study_to_gold, data_roi_study_to_study),
-    packages = c("ggplot2", "patchwork")
-  ),
-  tar_target(
     fig_roi,
     make_tikz(
-      p = roi,
+      p = make_roi(data_roi_study_to_gold, data_roi_study_to_study),
       file = "analyses/figures/roi.tex",
       width = 6,
       height = 5
     ),
-    format = "file"
+    format = "file",
+    packages = c("patchwork")
   ),
   tar_target(
     fig_roi2,
@@ -689,8 +685,8 @@ list(
     make_tikz(
       p = make_modelroi(data_modelroi_gold_gold_to_study),
       file = "analyses/figures/modelroi.tex",
-      width = 6,
-      height = 8
+      width = 4,
+      height = 6
     ),
     format = "file"
   ),
@@ -710,8 +706,8 @@ list(
     make_tikz(
       p = make_model_r2(data_model_gold_gold_to_study_r2),
       file = "analyses/figures/model_r2.tex",
-      width = 8,
-      height = 8
+      width = 6,
+      height = 3
     ),
     format = "file"
   ),

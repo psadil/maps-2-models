@@ -452,5 +452,5 @@ make_ecdf_peak_reliability <- function(data_peak_study_to_study) {
   "
     ) +
     patchwork::plot_annotation(tag_levels = "a", tag_suffix = ")") &
-    ggplot2::theme_gray(base_size = 8)
+    ggplot2::theme_minimal(base_size = 8)
 }
